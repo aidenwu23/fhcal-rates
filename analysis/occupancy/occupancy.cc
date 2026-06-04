@@ -15,6 +15,8 @@
 
 #include <edm4eic/CalorimeterHitCollection.h>
 
+#include "utils.h"
+
 #include <algorithm>
 #include <cmath>
 #include <cstdint>
@@ -32,7 +34,7 @@ namespace {
 
 // Constants
 constexpr const char* kHitCollection = "LFHCALRecHits"; // Use reco collection
-constexpr double kThresholdGeV = 0.005;                 // Hit needs to be above 5 MeV.
+constexpr double kDefaultThresholdGeV = 5e-4;           // Default threshold is 0.5 MeV.
 constexpr double kEventWindowSec = 2e-6;                // 2 microseconds.
 constexpr int kNLayers = 7;                             // 7 longitudinal readout layers.
 constexpr int kAllLayersIndex = kNLayers;               // Index for merged layer stats.
@@ -60,6 +62,7 @@ struct LayerAccum {
 struct Args {
   std::string input_dir;
   std::string output_file;
+  double threshold_geV = kDefaultThresholdGeV;
 };
 
 void usage(const char* argv0);
@@ -74,6 +77,8 @@ Args parse_args(int argc, char* argv[]) {
       args.input_dir = argv[++i];
     } else if ((arg == "-o" || arg == "--output") && i + 1 < argc) {
       args.output_file = argv[++i];
+    } else if ((arg == "-t" || arg == "--threshold") && i + 1 < argc) {
+      args.threshold_geV = std::stod(argv[++i]);
     } else {
       usage(argv[0]);
       std::exit(1);
@@ -89,27 +94,7 @@ Args parse_args(int argc, char* argv[]) {
 }
 
 void usage(const char* argv0) {
-  std::cerr << "Usage: " << argv0 << " -i INPUT_DIR -o OUTPUT.root\n";
-}
-
-// Check if collection is available.
-bool has_collection(const podio::Frame& frame, const std::string& name) {
-  for (const auto& available : frame.getAvailableCollections()) {
-    if (available == name) return true;
-  }
-  return false;
-}
-
-// Find all ROOT files in a directory and return a sorted list of paths.
-std::vector<fs::path> find_root_files(const std::string& input_dir) {
-  std::vector<fs::path> files;
-  for (const auto& entry : fs::directory_iterator(input_dir)) {
-    if (entry.is_regular_file() && entry.path().extension() == ".root") {
-      files.push_back(entry.path());
-    }
-  }
-  std::sort(files.begin(), files.end());
-  return files;
+  std::cerr << "Usage: " << argv0 << " -i INPUT_DIR -o OUTPUT.root [-t THRESHOLD_GEV]\n";
 }
 
 // Draw a (custom) histogram on a canvas and write it to the given directory.
@@ -133,9 +118,10 @@ int main(int argc, char* argv[]) {
   const auto args = parse_args(argc, argv);
   const auto& input_dir = args.input_dir;
   const auto& output_file = args.output_file;
+  const double threshold_geV = args.threshold_geV;
 
   // Find input files.
-  const auto files = find_root_files(input_dir);
+  const auto files = br::find_root_files(input_dir);
   if (files.empty()) {
     std::cerr << "No ROOT files found in " << input_dir << "\n";
     return 1;
@@ -157,8 +143,14 @@ int main(int argc, char* argv[]) {
 
   std::uint64_t n_events = 0;
 
+  const auto total_files = files.size();
+  std::size_t i = 0;
+
   // Loop over all files in the input directory.
   for (const auto& path : files) {
+    ++i;
+    std::cerr << "\r" << i << "/" << total_files << " files read." << std::flush;
+
     podio::ROOTReader reader;
     reader.openFile(path.string());
 
@@ -173,7 +165,7 @@ int main(int argc, char* argv[]) {
 
       // Grab LFHCALRecHits when possible.
       podio::Frame frame(std::move(data));
-      if (!has_collection(frame, kHitCollection)) continue;
+      if (!br::has_collection(frame, kHitCollection)) continue;
       ++n_events;
 
       // Initialize per-event counts.
@@ -184,8 +176,8 @@ int main(int argc, char* argv[]) {
       const auto& hits = frame.get<edm4eic::CalorimeterHitCollection>(kHitCollection);
       for (const auto& hit : hits) {
 
-        // Apply 5 MeV threshold.
-        if (hit.getEnergy() <= kThresholdGeV) continue;
+        // Apply hit threshold.
+        if (hit.getEnergy() <= threshold_geV) continue;
 
         // Get layer and cellID.
         const int layer = hit.getLayer();
@@ -339,6 +331,7 @@ int main(int argc, char* argv[]) {
     draw_and_write(dir, layers[layer].h_hits_evt, "c_hits_evt", false, true);
   }
 
+  std::cout << "\n";
   output.Close();
   return 0;
 }
