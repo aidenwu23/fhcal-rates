@@ -15,3 +15,5 @@ add_subdirectory(scripts/data_prep)
 add_subdirectory(analysis/hit-origins)
 
 add_subdirectory(analysis/occupancy)
+
+add_subdirectory(analysis/performance)

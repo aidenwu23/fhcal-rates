@@ -110,6 +110,7 @@ double mean_channel_rate_hz(const ColumnStats& stats, double total_time_sec) {
 double total_rate_hz(const ColumnStats& stats, double total_time_sec) {
   return total_time_sec > 0.0 ? static_cast<double>(stats.total_hits) / total_time_sec : 0.0;
 }
+// -----------------------------------------------------------------------------
 
 // Write output csv.
 void write_csv(const fs::path& output_path,
