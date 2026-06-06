@@ -13,7 +13,7 @@ FILTERED_ROOT = ROOT / "data/filtered"
 RECO_COLLECTIONS = (
     "EventHeader,MCParticles,LFHCALHits,LFHCALHitsContributions,"
     "LFHCALRawHits,LFHCALRawHitAssociations,LFHCALRecHits,"
-    "LFHCALIslandProtoClusters,LFHCALClusters"
+    "LFHCALIslandProtoClusters,LFHCALClusters,LFHCALClusterAssociations"
 )
 
 

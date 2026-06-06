@@ -52,9 +52,15 @@ struct ChannelStats {
 
 // Stores stats for all 7 layers plus a summed layer consisting of all 7 layers.
 struct LayerAccum {
-  // For one layer bucket, map each unique transverse cellID to accumulated channel stats.
-  // Since the enclosing vector index already selects the layer, the full readout channel is
-  // effectively (layer index, cellID).
+  // One map entry = one readout channel inside this layer bucket.
+  //
+  // For physical buckets layer=0..6:
+  //   key = cellID
+  //   meaning one transverse cell in that one longitudinal layer.
+  //
+  // For the summed bucket:
+  //   key = a synthetic integer built from (layer, cellID)
+  //   so channels from different layers stay distinct even if their raw cellID matches (just in case).
   std::unordered_map<std::uint64_t, ChannelStats> channels;
   TH1D* h_hits_evt = nullptr;
 };
@@ -143,13 +149,11 @@ int main(int argc, char* argv[]) {
 
   std::uint64_t n_events = 0;
 
-  const auto total_files = files.size();
-  std::size_t i = 0;
+  br::FileProgress progress(files.size(), std::cerr);
 
   // Loop over all files in the input directory.
   for (const auto& path : files) {
-    ++i;
-    std::cerr << "\r" << i << "/" << total_files << " files read." << std::flush;
+    progress.tick();
 
     podio::ROOTReader reader;
     reader.openFile(path.string());
@@ -168,7 +172,8 @@ int main(int argc, char* argv[]) {
       if (!br::has_collection(frame, kHitCollection)) continue;
       ++n_events;
 
-      // Initialize per-event counts.
+      // Per-event channel counters.
+      // event_counts[layer][channel]: For this event, the number of hits that landed in [layer]'s [channel].
       std::vector<std::unordered_map<std::uint64_t, int>> event_counts(kNLayers + 1);
       std::vector<int> layer_totals(kNLayers + 1, 0);
 
@@ -183,21 +188,21 @@ int main(int argc, char* argv[]) {
         const int layer = hit.getLayer();
         if (layer < 0 || layer >= kNLayers) continue;
 
-        // Copy and accumulate hit info to the corresponding layer channel.
         const auto cell_id = static_cast<std::uint64_t>(hit.getCellID());
         const auto pos = hit.getPosition();
 
-        // layers[layer].channels stores all unique cellIDs seen for that layer.
-        auto& stats = layers[layer].channels[cell_id]; // So one "channel" = all cells with the same (x, y, layer).
+        // Look up the global statistics object for this channel.
+        // If this channel has never been seen before, the map creates a fresh ChannelStats entry.
+        auto& stats = layers[layer].channels[cell_id];
         stats.x = pos.x;
         stats.y = pos.y;
         stats.r = std::hypot(pos.x, pos.y);
 
+        // Count one more hit in this channel for the current event.
         ++event_counts[layer][cell_id];
         ++layer_totals[layer];
 
-        // Also accumulate stats for the summed layer.
-        // A synthetic key from (layer, cell_id) is built before storing it in the summed bucket.
+        // Also update the synthetic "all layers together" bucket.
         const std::uint64_t merged_cell_id = static_cast<std::uint64_t>(layer) * (1ULL << 56) | cell_id;
         auto& merged_stats = layers[kAllLayersIndex].channels[merged_cell_id];
         merged_stats.x = pos.x;
@@ -207,12 +212,17 @@ int main(int argc, char* argv[]) {
         ++layer_totals[kAllLayersIndex];
       }
 
-      // Fill hists with accumulated stats.
+      // End of this event:
+      // move the temporary per-event counts into the long-lived channel statistics.
       for (int layer = 0; layer <= kNLayers; ++layer) {
         layers[layer].h_hits_evt->Fill(layer_totals[layer]);
         for (const auto& [cell_id, count] : event_counts[layer]) {
           auto& stats = layers[layer].channels[cell_id];
+
+          // Add this event's contribution to the all-events total.
           stats.total_hits += static_cast<std::uint64_t>(count);
+
+          // Keep the largest number of hits this channel ever saw in any single event.
           stats.max_hits_event = std::max(stats.max_hits_event, count);
         }
       }
@@ -259,7 +269,6 @@ int main(int argc, char* argv[]) {
     const int xbins = static_cast<int>(std::ceil((xmax - xmin) / kCellSizeMM));
     const int ybins = static_cast<int>(std::ceil((ymax - ymin) / kCellSizeMM));
 
-    // -------------------------- initialize TH2Ds --------------------------
     // Average hits/event/channel.
     auto* h_avg = new TH2D(
         "h_avg",
@@ -295,9 +304,6 @@ int main(int argc, char* argv[]) {
     auto* h_nchan_r = new TH1D("h_nchan_r", "", 100, 0.0, std::max(1.0, 1.05 * rmax));
 
     // Per channel, compute stats and fill corresponding histograms.
-    // Loop over all unique channels collected for this layer bucket.
-    // layer0..layer6 --> all cells that share (x, y, layer).
-    // sum_layers --> all unique synthetic (layer, cellID) channels.
     for (const auto& [cell_id, stats] : layers[layer].channels) {
       (void)cell_id;
       const double avg = static_cast<double>(stats.total_hits) / static_cast<double>(n_events);

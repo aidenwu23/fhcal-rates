@@ -1,6 +1,8 @@
 #include "utils.h"
 
 #include <algorithm>
+#include <cmath>
+#include <ostream>
 
 namespace br {
 
@@ -20,6 +22,25 @@ std::vector<std::filesystem::path> find_root_files(const std::string& input_dir)
   }
   std::sort(files.begin(), files.end());
   return files;
+}
+
+std::vector<double> log_edges(int bins, double low, double high) {
+  std::vector<double> edges(bins + 1);
+  const double log_low = std::log10(low);
+  const double log_high = std::log10(high);
+  for (int i = 0; i <= bins; ++i) {
+    const double frac = static_cast<double>(i) / bins;
+    edges[i] = std::pow(10.0, log_low + frac * (log_high - log_low));
+  }
+  return edges;
+}
+
+FileProgress::FileProgress(std::size_t total_files, std::ostream& os)
+    : total_files_(total_files), os_(os) {}
+
+void FileProgress::tick() {
+  ++current_file_;
+  os_ << "\r" << current_file_ << "/" << total_files_ << " files read." << std::flush;
 }
 
 }  // namespace br

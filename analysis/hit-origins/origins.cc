@@ -198,13 +198,11 @@ int main(int argc, char* argv[]) {
   TH1I status("h_status", "Raw generatorStatus;generatorStatus;Contributions", 8000, -1000, 7000);
   status.SetStats(false);
 
-  const auto total_files = files.size();
-  std::size_t i = 0;
+  br::FileProgress progress(files.size(), std::cerr);
 
   // Loop through files.
   for (const auto& path : files) {
-    ++i;
-    std::cerr << "\r" << i << "/" << total_files << " files read." << std::flush;
+    progress.tick();
 
     // Read file.
     podio::ROOTReader reader;

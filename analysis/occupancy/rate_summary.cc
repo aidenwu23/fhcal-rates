@@ -162,13 +162,11 @@ int main(int argc, char* argv[]) {
   std::vector<ColumnStats> columns(kNColumns);
   std::uint64_t n_events = 0;
 
-  const auto total_files = files.size();
-  std::size_t i = 0;
+  br::FileProgress progress(files.size(), std::cerr);
 
   // Loop through input files.
   for (const auto& path : files) {
-    ++i;
-    std::cerr << "\r" << i << "/" << total_files << " files read." << std::flush;
+    progress.tick();
     podio::ROOTReader reader;
     reader.openFile(path.string());
 
