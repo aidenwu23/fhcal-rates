@@ -19,7 +19,7 @@ struct ThresholdEtaHists {
 
 double eta(const edm4hep::Vector3f& position);
 
-ThresholdEtaHists make_eta_hists(const std::vector<const char*>& origin_keys,
+ThresholdEtaHists make_eta_hists(const std::vector<const char*>& origin_labels,
                                  const std::vector<int>& origin_colors,
                                  double threshold_geV,
                                  int bins = 240,

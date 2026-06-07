@@ -13,13 +13,13 @@ struct LayerEdepHists {
   std::vector<TH1D*> by_origin;
 };
 
-LayerEdepHists make_edep_hists(const std::vector<const char*>& origin_keys,
+LayerEdepHists make_edep_hists(const std::vector<const char*>& origin_labels,
                                const std::vector<int>& origin_colors,
                                int layer,
                                int bins,
                                const double* edges);
 
-std::vector<TH1D*> make_summed_edep_hists(const std::vector<const char*>& origin_keys,
+std::vector<TH1D*> make_summed_edep_hists(const std::vector<const char*>& origin_labels,
                                           const std::vector<int>& origin_colors,
                                           int bins,
                                           const double* edges);

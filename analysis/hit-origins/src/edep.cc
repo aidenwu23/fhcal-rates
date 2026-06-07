@@ -24,25 +24,25 @@ std::string edep_title(int layer) {
 
 // Create the per-origin energy-deposit histograms for one readout layer.
 // Called once at startup for each readout layer configuration.
-LayerEdepHists make_edep_hists(const std::vector<const char*>& origin_keys,
+LayerEdepHists make_edep_hists(const std::vector<const char*>& origin_labels,
                                const std::vector<int>& origin_colors,
                                int layer,
                                int bins,
                                const double* edges) {
-  if (origin_keys.size() != origin_colors.size()) {
-    throw std::invalid_argument("Origin key/color size mismatch");
+  if (origin_labels.size() != origin_colors.size()) {
+    throw std::invalid_argument("Origin label/color size mismatch");
   }
 
   LayerEdepHists out;
   out.layer = layer;
   out.title = edep_title(layer);
-  out.by_origin.reserve(origin_keys.size());
+  out.by_origin.reserve(origin_labels.size());
 
   const std::string layer_tag = layer < 0 ? "sum" : std::to_string(layer);
 
   // For each origin (generatorStatus family), build one histogram tagged by layer number.
-  for (std::size_t i = 0; i < origin_keys.size(); ++i) {
-    const std::string name = "h_edep_hit_layer" + layer_tag + "_" + origin_keys[i];
+  for (std::size_t i = 0; i < origin_labels.size(); ++i) {
+    const std::string name = "h_edep_hit_layer" + layer_tag + "_" + origin_labels[i];
     auto* hist = new TH1D(name.c_str(), out.title.c_str(), bins, edges);
     style(hist, origin_colors[i]);
     out.by_origin.push_back(hist);
@@ -51,12 +51,12 @@ LayerEdepHists make_edep_hists(const std::vector<const char*>& origin_keys,
   return out;
 }
 
-std::vector<TH1D*> make_summed_edep_hists(const std::vector<const char*>& origin_keys,
+std::vector<TH1D*> make_summed_edep_hists(const std::vector<const char*>& origin_labels,
                                           const std::vector<int>& origin_colors,
                                           int bins,
                                           const double* edges) {
   // Reuse the same histogram factory for the all-layers-summed view.
-  return make_edep_hists(origin_keys, origin_colors, -1, bins, edges).by_origin;
+  return make_edep_hists(origin_labels, origin_colors, -1, bins, edges).by_origin;
 }
 
 // Called after the event loop, once per readout layer.

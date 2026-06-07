@@ -52,14 +52,14 @@ double eta(const edm4hep::Vector3f& position) {
 }
 
 // Called once at startup for each threshold configuration.
-ThresholdEtaHists make_eta_hists(const std::vector<const char*>& origin_keys,
+ThresholdEtaHists make_eta_hists(const std::vector<const char*>& origin_labels,
                                  const std::vector<int>& origin_colors,
                                  double threshold_geV,
                                  int bins,
                                  double eta_min,
                                  double eta_max) {
-  if (origin_keys.size() != origin_colors.size()) {
-    throw std::invalid_argument("Origin key/color size mismatch");
+  if (origin_labels.size() != origin_colors.size()) {
+    throw std::invalid_argument("Origin label/color size mismatch");
   }
 
   ThresholdEtaHists out;
@@ -68,11 +68,11 @@ ThresholdEtaHists make_eta_hists(const std::vector<const char*>& origin_keys,
   out.directory = threshold_geV == 0.0 ? "Eta_hit" : "Eta_hit_" + tag;
   out.canvas_name = threshold_geV == 0.0 ? "c_eta_hit" : "c_eta_hit_" + tag;
   out.title = eta_title(threshold_geV);
-  out.by_origin.reserve(origin_keys.size());
+  out.by_origin.reserve(origin_labels.size());
 
   // For each origin, build one eta histogram for this threshold choice.
-  for (std::size_t i = 0; i < origin_keys.size(); ++i) {
-    const std::string name = "h_eta_hit_" + tag + "_" + origin_keys[i];
+  for (std::size_t i = 0; i < origin_labels.size(); ++i) {
+    const std::string name = "h_eta_hit_" + tag + "_" + origin_labels[i];
     auto* hist = new TH1D(name.c_str(), out.title.c_str(), bins, eta_min, eta_max);
     style(hist, origin_colors[i]);
     out.by_origin.push_back(hist);

@@ -26,7 +26,10 @@
 #include <algorithm>
 #include <cstdint>
 #include <filesystem>
+#include <fstream>
+#include <iomanip>
 #include <iostream>
+#include <stdexcept>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -37,22 +40,22 @@ namespace {
 
 const std::string kHitCollection = "LFHCALHits";
 constexpr int kNReadoutLayers = 7;
+constexpr double kEventWindowSec = 2e-6;
 const std::vector<double> kEtaThresholdsGeV = {0.0, 5e-4};  // Min energy threshold applied to hits in the eta graphs.
 
 struct OriginInfo {
-  const char* key;
   const char* label;
   int color;
 };
 
 // Color mapping.
 const std::vector<OriginInfo> kOrigins = {
-    {"signal", "Signal", kBlack},
-    {"synrad", "Synrad", kRed + 1},
-    {"ebrem", "eBrem", kBlue + 1},
-    {"etouschek", "eTouschek", kMagenta + 1},
-    {"ecoulomb", "eCoulomb", kGreen + 2},
-    {"pbeamgas", "pBeamGas", kOrange + 7},
+    {"signal", kBlack},
+    {"synrad", kRed + 1},
+    {"eBrem", kBlue + 1},
+    {"eTouschek", kMagenta + 1},
+    {"eCoulomb", kGreen + 2},
+    {"pBeamGas", kOrange + 7},
 };
 
 // ----------------------------- handle CLI inputs -----------------------------
@@ -129,6 +132,31 @@ void draw_overlay(TFile& file,
   file.cd();
 }
 
+// Write a per-origin hit-rate summary as CSV.
+void write_rate_csv(const fs::path& output_path,
+                    const std::vector<std::uint64_t>& origin_hit_counts,
+                    std::uint64_t n_events) {
+  if (output_path.has_parent_path()) fs::create_directories(output_path.parent_path());
+
+  const double total_time_sec = static_cast<double>(n_events) * kEventWindowSec;
+  std::ofstream out(output_path);
+  if (!out) {
+    throw std::runtime_error("Failed to open output CSV");
+  }
+
+  out << "origin_label,total_hits,rate_hz\n";
+  out << std::setprecision(10);
+
+  for (std::size_t i = 0; i < kOrigins.size(); ++i) {
+    const double rate_hz = total_time_sec > 0.0
+                               ? static_cast<double>(origin_hit_counts[i]) / total_time_sec
+                               : 0.0;
+    out << kOrigins[i].label << ','
+        << origin_hit_counts[i] << ','
+        << rate_hz << '\n';
+  }
+}
+
 }  // namespace
 
 int main(int argc, char* argv[]) {
@@ -161,15 +189,15 @@ int main(int argc, char* argv[]) {
   const auto edges = br::log_edges(260, 1e-10, 10.0); // Log edges for nicer display.
 
   // Used for styling histograms.
-  std::vector<const char*> origin_keys;
+  std::vector<const char*> origin_labels;
   std::vector<int> origin_colors;
 
-  origin_keys.reserve(kOrigins.size());
+  origin_labels.reserve(kOrigins.size());
   origin_colors.reserve(kOrigins.size());
 
-  // Extract the tag and color fields from kOrigins into two parallel vectors so the helper functioons can use them.
+  // Extract the label and color fields from kOrigins into two parallel vectors so the helper functions can use them.
   for (const auto& origin : kOrigins) {
-    origin_keys.push_back(origin.key);
+    origin_labels.push_back(origin.label);
     origin_colors.push_back(origin.color);
   }
 
@@ -178,11 +206,11 @@ int main(int argc, char* argv[]) {
   edep_layers.reserve(kNReadoutLayers);
   for (int layer = 0; layer < kNReadoutLayers; ++layer) {
     // For each layer, make a histogram for all generatorStatus families.
-    edep_layers.push_back(br::origins::make_edep_hists(origin_keys, origin_colors, layer, 260, edges.data()));
+    edep_layers.push_back(br::origins::make_edep_hists(origin_labels, origin_colors, layer, 260, edges.data()));
   }
 
   // Also make an inclusive version for all 7.
-  auto edep_hit = br::origins::make_summed_edep_hists(origin_keys, origin_colors, 260, edges.data());
+  auto edep_hit = br::origins::make_summed_edep_hists(origin_labels, origin_colors, 260, edges.data());
 
   // Make a histogram for eta hists.
   std::vector<br::origins::ThresholdEtaHists> eta_hists;
@@ -190,11 +218,13 @@ int main(int argc, char* argv[]) {
 
   // One of the thresholds is 0 so its just <no threshold, threshold>.
   for (double threshold_geV : kEtaThresholdsGeV) { 
-    eta_hists.push_back(br::origins::make_eta_hists(origin_keys, origin_colors, threshold_geV));
+    eta_hists.push_back(br::origins::make_eta_hists(origin_labels, origin_colors, threshold_geV));
   }
 
   TH1I status("h_status", "Raw generatorStatus;generatorStatus;Contributions", 8000, -1000, 7000);
   status.SetStats(false);
+  std::vector<std::uint64_t> origin_hit_counts(kOrigins.size(), 0);
+  std::uint64_t n_events = 0;
 
   br::FileProgress progress(files.size(), std::cerr);
 
@@ -220,6 +250,7 @@ int main(int argc, char* argv[]) {
       if (!br::has_collection(frame, kHitCollection)) {
         continue;
       }
+      ++n_events;
 
       // Loop through all hits for this event.
       const auto& hits = frame.get<edm4hep::SimCalorimeterHitCollection>(kHitCollection);
@@ -246,6 +277,7 @@ int main(int argc, char* argv[]) {
 
         // Fill hists.
         if (hit.getEnergy() > 0.0) {
+          ++origin_hit_counts[hit_origin];
           
           // Decode the hit cellID into the corresponding readout layer and fill the corresponding hist.
           const int layer = decoder.get(static_cast<std::uint64_t>(hit.getCellID()), "rlayerz");
@@ -260,6 +292,11 @@ int main(int argc, char* argv[]) {
         }
       }
     }
+  }
+
+  if (n_events == 0) {
+    std::cerr << "No events with " << kHitCollection << " found\n";
+    return 1;
   }
 
   for (const auto& layer_hists : edep_layers) {
@@ -290,6 +327,15 @@ int main(int argc, char* argv[]) {
   output.mkdir("Status")->cd();
   status.Write();
   output.Close();
+
+  try {
+    auto csv_path = output_path;
+    csv_path.replace_extension(".csv");
+    write_rate_csv(csv_path, origin_hit_counts, n_events);
+  } catch (const std::exception& ex) {
+    std::cerr << ex.what() << '\n';
+    return 1;
+  }
 
   std::cout << "\n";
   return 0;
