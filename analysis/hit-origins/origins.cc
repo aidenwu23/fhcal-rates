@@ -18,15 +18,17 @@
 #include <edm4hep/SimCalorimeterHitCollection.h>
 
 #include "classify_hit.h"
+#include "decode_channel.h"
+#include "edep.h"
+#include "eta.h"
 #include "utils.h"
 
 #include <algorithm>
-#include <cmath>
+#include <cstdint>
 #include <filesystem>
 #include <iostream>
 #include <string>
 #include <string_view>
-#include <utility>
 #include <vector>
 
 namespace fs = std::filesystem;
@@ -34,6 +36,8 @@ namespace fs = std::filesystem;
 namespace {
 
 const std::string kHitCollection = "LFHCALHits";
+constexpr int kNReadoutLayers = 7;
+const std::vector<double> kEtaThresholdsGeV = {0.0, 5e-4};  // Min energy threshold applied to hits in the eta graphs.
 
 struct OriginInfo {
   const char* key;
@@ -85,34 +89,7 @@ Args parse_args(int argc, char* argv[]) {
 }
 // -----------------------------------------------------------------------------
 
-// Compute eta.
-double eta(const edm4hep::Vector3f& position) {
-  const double pt = std::hypot(position.x, position.y);
-  if (pt <= 0.0) return 0.0;
-  return std::asinh(position.z / pt);
-}
-
-// Build log spaced bin edges (so things display nicely on log scale).
-std::vector<double> log_edges(int bins, double low, double high) {
-  std::vector<double> edges(bins + 1);
-  const double log_low = std::log10(low);
-  const double log_high = std::log10(high);
-  for (int bin = 0; bin <= bins; ++bin) {
-    const double fraction = static_cast<double>(bin) / bins;
-    edges[bin] = std::pow(10.0, log_low + fraction * (log_high - log_low));
-  }
-  return edges;
-}
-
-// Style a histogram.
-void style(TH1D* hist, int color) {
-  hist->SetLineColor(color);
-  hist->SetMarkerColor(color);
-  hist->SetLineWidth(2);
-  hist->SetStats(false);
-}
-
-// Draw an overlay canvas by looping over all hists.
+// Draw an overlay canvas by looping over all provided hists.
 void draw_overlay(TFile& file,
                   const char* directory,
                   const char* canvas_name,
@@ -179,20 +156,41 @@ int main(int argc, char* argv[]) {
     return 1;
   }
 
-  const auto edges = log_edges(260, 1e-10, 10.0);
+  // Make a decoder.
+  const br::LFHCALDecoder decoder;
+  const auto edges = br::log_edges(260, 1e-10, 10.0); // Log edges for nicer display.
 
-  // Create two histogram types. One bins by energy deposited (edep) and the other bins by eta.
-  std::vector<TH1D*> edep_hit;
-  std::vector<TH1D*> eta_hit;
+  // Used for styling histograms.
+  std::vector<const char*> origin_keys;
+  std::vector<int> origin_colors;
+
+  origin_keys.reserve(kOrigins.size());
+  origin_colors.reserve(kOrigins.size());
+
+  // Extract the tag and color fields from kOrigins into two parallel vectors so the helper functioons can use them.
   for (const auto& origin : kOrigins) {
-    auto* hit_energy = new TH1D((std::string("h_edep_hit_") + origin.key).c_str(),
-                                "LFHCAL hit origin;E_{dep} [GeV];Hits", 260, edges.data());
-    auto* hit_eta = new TH1D((std::string("h_eta_hit_") + origin.key).c_str(),
-                             "LFHCAL hit origin;#eta;Hits", 240, -12.0, 12.0);
-    style(hit_energy, origin.color);
-    style(hit_eta, origin.color);
-    edep_hit.push_back(hit_energy);
-    eta_hit.push_back(hit_eta);
+    origin_keys.push_back(origin.key);
+    origin_colors.push_back(origin.color);
+  }
+
+  // Make a histogram for all 7 readout layers.
+  std::vector<br::origins::LayerEdepHists> edep_layers;
+  edep_layers.reserve(kNReadoutLayers);
+  for (int layer = 0; layer < kNReadoutLayers; ++layer) {
+    // For each layer, make a histogram for all generatorStatus families.
+    edep_layers.push_back(br::origins::make_edep_hists(origin_keys, origin_colors, layer, 260, edges.data()));
+  }
+
+  // Also make an inclusive version for all 7.
+  auto edep_hit = br::origins::make_summed_edep_hists(origin_keys, origin_colors, 260, edges.data());
+
+  // Make a histogram for eta hists.
+  std::vector<br::origins::ThresholdEtaHists> eta_hists;
+  eta_hists.reserve(kEtaThresholdsGeV.size());
+
+  // One of the thresholds is 0 so its just <no threshold, threshold>.
+  for (double threshold_geV : kEtaThresholdsGeV) { 
+    eta_hists.push_back(br::origins::make_eta_hists(origin_keys, origin_colors, threshold_geV));
   }
 
   TH1I status("h_status", "Raw generatorStatus;generatorStatus;Contributions", 8000, -1000, 7000);
@@ -229,7 +227,7 @@ int main(int argc, char* argv[]) {
         double biggest_contribution = -1.0;
         int hit_origin = 0;
 
-        // Per hit loop through all contributions.
+        // Per hit, loop through all contributions.
         for (const auto& contribution : hit.getContributions()) {
           const auto particle = contribution.getParticle();
           const int generator_status = particle.getGeneratorStatus();
@@ -248,15 +246,47 @@ int main(int argc, char* argv[]) {
 
         // Fill hists.
         if (hit.getEnergy() > 0.0) {
-          edep_hit[hit_origin]->Fill(hit.getEnergy());
+          
+          // Decode the hit cellID into the corresponding readout layer and fill the corresponding hist.
+          const int layer = decoder.get(static_cast<std::uint64_t>(hit.getCellID()), "rlayerz");
+          if (layer >= 0 && layer < kNReadoutLayers) {
+            br::origins::fill_edep(edep_layers[layer], hit_origin, hit.getEnergy());
+          }
         }
-        eta_hit[hit_origin]->Fill(eta(hit.getPosition()));
+
+        // Eta plots.
+        for (auto& eta_hists_for_threshold : eta_hists) {
+          br::origins::fill_eta(eta_hists_for_threshold, hit_origin, hit.getPosition(), hit.getEnergy());
+        }
       }
     }
   }
 
+  for (const auto& layer_hists : edep_layers) {
+    br::origins::sum_edep_into(edep_hit, layer_hists);
+  }
+
   draw_overlay(output, "Edep_hit", "c_edep_hit", "LFHCAL hit origin;E_{dep} [GeV];Hits", edep_hit, true, true);
-  draw_overlay(output, "Eta_hit", "c_eta_hit", "LFHCAL hit origin;#eta;Hits", eta_hit, false, true);
+  for (const auto& layer_hists : edep_layers) {
+    const auto layer_dir = "Edep_hit_layer" + std::to_string(layer_hists.layer);
+    const auto layer_canvas = "c_edep_hit_layer" + std::to_string(layer_hists.layer);
+    draw_overlay(output,
+                 layer_dir.c_str(),
+                 layer_canvas.c_str(),
+                 layer_hists.title.c_str(),
+                 layer_hists.by_origin,
+                 true,
+                 true);
+  }
+  for (const auto& eta_hists_for_threshold : eta_hists) {
+    draw_overlay(output,
+                 eta_hists_for_threshold.directory.c_str(),
+                 eta_hists_for_threshold.canvas_name.c_str(),
+                 eta_hists_for_threshold.title.c_str(),
+                 eta_hists_for_threshold.by_origin,
+                 false,
+                 true);
+  }
   output.mkdir("Status")->cd();
   status.Write();
   output.Close();

@@ -15,6 +15,7 @@
 
 #include <edm4eic/CalorimeterHitCollection.h>
 
+#include "decode_channel.h"
 #include "utils.h"
 
 #include <algorithm>
@@ -23,6 +24,7 @@
 #include <filesystem>
 #include <iostream>
 #include <limits>
+#include <unordered_set>
 #include <string>
 #include <string_view>
 #include <unordered_map>
@@ -41,27 +43,31 @@ constexpr int kAllLayersIndex = kNLayers;               // Index for merged laye
 constexpr double kCellSizeMM = 50.0;                    // Cell size is 5cm by 5 cm.
 constexpr double kXYExtentMM = 2700.0;                  // +- 2700 mm for x and y ranges.
 
-// Stats per readout layer.
+// Stats per channel (cells sharing transverse location in a readout layer).
 struct ChannelStats {
-  double x = 0.0;
-  double y = 0.0;
-  double r = 0.0;
+  std::unordered_set<std::uint64_t> raw_cell_ids; // Keep track of which cells belong in this channel.
+
+  // Accumulate the raw hit positions from all cells in this channel.
+  double x_sum = 0.0;
+  double y_sum = 0.0;
+
+  // Total number of positions added.
+  std::uint64_t n_pos = 0;
   std::uint64_t total_hits = 0;
-  int max_hits_event = 0;
+
+  int max_hits_event = 0; // Keep track of which event had the most hits. 
+
+  // Divide sum of positions by total positions added to get the average hit positions for the whole channel.
+  double x() const { return n_pos > 0 ? x_sum / static_cast<double>(n_pos) : 0.0; }
+  double y() const { return n_pos > 0 ? y_sum / static_cast<double>(n_pos) : 0.0; }
+  double r() const { return std::hypot(x(), y()); } // radial distance from center.
 };
 
-// Stores stats for all 7 layers plus a summed layer consisting of all 7 layers.
+// Hold one layer's data.
 struct LayerAccum {
-  // One map entry = one readout channel inside this layer bucket.
-  //
-  // For physical buckets layer=0..6:
-  //   key = cellID
-  //   meaning one transverse cell in that one longitudinal layer.
-  //
-  // For the summed bucket:
-  //   key = a synthetic integer built from (layer, cellID)
-  //   so channels from different layers stay distinct even if their raw cellID matches (just in case).
-  std::unordered_map<std::uint64_t, ChannelStats> channels;
+
+  // For each unique channelID, it stores the statistics and also the ID hash.
+  std::unordered_map<br::LFHCALChannelID, ChannelStats, br::LFHCALChannelIDHash> channels;
   TH1D* h_hits_evt = nullptr;
 };
 
@@ -126,6 +132,9 @@ int main(int argc, char* argv[]) {
   const auto& output_file = args.output_file;
   const double threshold_geV = args.threshold_geV;
 
+  // Create a decoder for cell IDs.
+  const br::LFHCALDecoder decoder;
+
   // Find input files.
   const auto files = br::find_root_files(input_dir);
   if (files.empty()) {
@@ -174,7 +183,7 @@ int main(int argc, char* argv[]) {
 
       // Per-event channel counters.
       // event_counts[layer][channel]: For this event, the number of hits that landed in [layer]'s [channel].
-      std::vector<std::unordered_map<std::uint64_t, int>> event_counts(kNLayers + 1);
+      std::vector<std::unordered_map<br::LFHCALChannelID, int, br::LFHCALChannelIDHash>> event_counts(kNLayers + 1);
       std::vector<int> layer_totals(kNLayers + 1, 0);
 
       // Grab and loop over hits.
@@ -188,27 +197,31 @@ int main(int argc, char* argv[]) {
         const int layer = hit.getLayer();
         if (layer < 0 || layer >= kNLayers) continue;
 
+        // Decode channel ID from cell ID.
         const auto cell_id = static_cast<std::uint64_t>(hit.getCellID());
+        const auto channel_id = decoder.channel(cell_id);
         const auto pos = hit.getPosition();
 
         // Look up the global statistics object for this channel.
-        // If this channel has never been seen before, the map creates a fresh ChannelStats entry.
-        auto& stats = layers[layer].channels[cell_id];
-        stats.x = pos.x;
-        stats.y = pos.y;
-        stats.r = std::hypot(pos.x, pos.y);
+        // If this channel has never been seen before, the map creates a fresh ChannelStats entry, otherwise,
+        // it conveniently grabs the preexisting one.
+        auto& stats = layers[layer].channels[channel_id];
+        stats.raw_cell_ids.insert(cell_id);
+        stats.x_sum += pos.x;
+        stats.y_sum += pos.y;
+        ++stats.n_pos;
 
         // Count one more hit in this channel for the current event.
-        ++event_counts[layer][cell_id];
+        ++event_counts[layer][channel_id];
         ++layer_totals[layer];
 
-        // Also update the synthetic "all layers together" bucket.
-        const std::uint64_t merged_cell_id = static_cast<std::uint64_t>(layer) * (1ULL << 56) | cell_id;
-        auto& merged_stats = layers[kAllLayersIndex].channels[merged_cell_id];
-        merged_stats.x = pos.x;
-        merged_stats.y = pos.y;
-        merged_stats.r = std::hypot(pos.x, pos.y);
-        ++event_counts[kAllLayersIndex][merged_cell_id];
+        // Also update the "all layers together" bucket.
+        auto& merged_stats = layers[kAllLayersIndex].channels[channel_id];
+        merged_stats.raw_cell_ids.insert(cell_id);
+        merged_stats.x_sum += pos.x;
+        merged_stats.y_sum += pos.y;
+        ++merged_stats.n_pos;
+        ++event_counts[kAllLayersIndex][channel_id];
         ++layer_totals[kAllLayersIndex];
       }
 
@@ -216,8 +229,8 @@ int main(int argc, char* argv[]) {
       // move the temporary per-event counts into the long-lived channel statistics.
       for (int layer = 0; layer <= kNLayers; ++layer) {
         layers[layer].h_hits_evt->Fill(layer_totals[layer]);
-        for (const auto& [cell_id, count] : event_counts[layer]) {
-          auto& stats = layers[layer].channels[cell_id];
+        for (const auto& [channel_id, count] : event_counts[layer]) {
+          auto& stats = layers[layer].channels[channel_id];
 
           // Add this event's contribution to the all-events total.
           stats.total_hits += static_cast<std::uint64_t>(count);
@@ -258,9 +271,9 @@ int main(int argc, char* argv[]) {
 
     // Handle axis ranges.
     double rmax = 0.0;
-    for (const auto& [cell_id, stats] : layers[layer].channels) {
-      (void)cell_id;
-      rmax = std::max(rmax, stats.r);
+    for (const auto& [channel_id, stats] : layers[layer].channels) {
+      (void)channel_id;
+      rmax = std::max(rmax, stats.r());
     }
     const double xmin = -kXYExtentMM;
     const double xmax = kXYExtentMM;
@@ -304,15 +317,15 @@ int main(int argc, char* argv[]) {
     auto* h_nchan_r = new TH1D("h_nchan_r", "", 100, 0.0, std::max(1.0, 1.05 * rmax));
 
     // Per channel, compute stats and fill corresponding histograms.
-    for (const auto& [cell_id, stats] : layers[layer].channels) {
-      (void)cell_id;
+    for (const auto& [channel_id, stats] : layers[layer].channels) {
+      (void)channel_id;
       const double avg = static_cast<double>(stats.total_hits) / static_cast<double>(n_events);
       const double rate = static_cast<double>(stats.total_hits) / (static_cast<double>(n_events) * kEventWindowSec);
-      h_avg->Fill(stats.x, stats.y, avg);
-      h_max->Fill(stats.x, stats.y, stats.max_hits_event);
-      h_rate->Fill(stats.x, stats.y, rate);
-      h_avg_r->Fill(stats.r, avg);
-      h_nchan_r->Fill(stats.r, 1.0);
+      h_avg->Fill(stats.x(), stats.y(), avg);
+      h_max->Fill(stats.x(), stats.y(), stats.max_hits_event);
+      h_rate->Fill(stats.x(), stats.y(), rate);
+      h_avg_r->Fill(stats.r(), avg);
+      h_nchan_r->Fill(stats.r(), 1.0);
     }
 
     for (int bin = 1; bin <= h_avg_r->GetNbinsX(); ++bin) {

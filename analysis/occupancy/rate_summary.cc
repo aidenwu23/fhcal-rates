@@ -11,6 +11,7 @@
 #include <edm4hep/SimCalorimeterHitCollection.h>
 
 #include "classify_hit.h"
+#include "decode_channel.h"
 #include "utils.h"
 
 #include <algorithm>
@@ -39,7 +40,7 @@ struct Args {
 };
 
 struct ColumnStats {
-  std::unordered_map<std::uint64_t, std::uint64_t> channel_hits;
+  std::unordered_map<br::LFHCALChannelID, std::uint64_t, br::LFHCALChannelIDHash> channel_hits;
   std::uint64_t total_hits = 0;
 };
 
@@ -155,6 +156,7 @@ int main(int argc, char* argv[]) {
   const auto args = parse_args(argc, argv);
   const auto files = br::find_root_files(args.input_dir);
   const double threshold_geV = args.threshold_geV;
+  const br::LFHCALDecoder decoder;
   if (files.empty()) {
     std::cerr << "No ROOT files found in " << args.input_dir << "\n";
     return 1;
@@ -194,12 +196,13 @@ int main(int argc, char* argv[]) {
 
         // Grab dominant contribution and increment stats.
         const auto cell_id = static_cast<std::uint64_t>(hit.getCellID());
+        const auto channel_id = decoder.channel(cell_id); // Assign the cell to a channel using the decoder.
         const Column source = static_cast<Column>(br::classify_background_class(br::dominant_status(hit)));
         const int source_index = static_cast<int>(source);
 
-        ++columns[source_index].channel_hits[cell_id];
+        ++columns[source_index].channel_hits[channel_id];
         ++columns[source_index].total_hits;
-        ++columns[static_cast<int>(Column::AllSources)].channel_hits[cell_id];
+        ++columns[static_cast<int>(Column::AllSources)].channel_hits[channel_id];
         ++columns[static_cast<int>(Column::AllSources)].total_hits;
       }
     }

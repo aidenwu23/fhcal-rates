@@ -4,8 +4,13 @@ find_package(EDM4HEP REQUIRED)
 
 add_executable(hit_origins origins.cc)
 target_compile_features(hit_origins PRIVATE cxx_std_17)
-target_include_directories(hit_origins PRIVATE ${CMAKE_SOURCE_DIR}/scripts/include)
-target_sources(hit_origins PRIVATE ${CMAKE_SOURCE_DIR}/scripts/src/utils.cc ${CMAKE_SOURCE_DIR}/scripts/src/classify_hit.cc)
+target_include_directories(hit_origins PRIVATE ${CMAKE_SOURCE_DIR}/scripts/include ${CMAKE_CURRENT_SOURCE_DIR}/include)
+target_sources(hit_origins PRIVATE
+  ${CMAKE_SOURCE_DIR}/scripts/src/utils.cc
+  ${CMAKE_SOURCE_DIR}/scripts/src/classify_hit.cc
+  ${CMAKE_SOURCE_DIR}/scripts/src/decode_channel.cc
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/eta.cc
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/edep.cc)
 target_link_libraries(
   hit_origins
   PRIVATE
