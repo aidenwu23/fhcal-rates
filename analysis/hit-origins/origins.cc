@@ -1,6 +1,6 @@
 /*
 
-./build/hit_origins -i data/reco -o plots/hit-origins/origins.root
+./build/hit_origins -i data/reco_bkg_feb -o plots/hit-origins/origins.root
 
 */
 
@@ -48,7 +48,6 @@ struct OriginInfo {
   int color;
 };
 
-// Color mapping.
 const std::vector<OriginInfo> kOrigins = {
     {"signal", kBlack},
     {"synrad", kRed + 1},
@@ -149,7 +148,7 @@ void write_rate_csv(const fs::path& output_path,
 
   for (std::size_t i = 0; i < kOrigins.size(); ++i) {
     const double rate_hz = total_time_sec > 0.0
-                               ? static_cast<double>(origin_hit_counts[i]) / total_time_sec
+                               ? static_cast<double>(origin_hit_counts[i]) / total_time_sec // Hz
                                : 0.0;
     out << kOrigins[i].label << ','
         << origin_hit_counts[i] << ','
@@ -240,7 +239,6 @@ int main(int argc, char* argv[]) {
     const std::size_t total_events = reader.getEntries("events");
     for (std::size_t event_index = 0; event_index < total_events; ++event_index) {
 
-      // Grab collection.
       auto data = reader.readEntry("events", event_index);
       if (!data) {
         continue;
@@ -255,40 +253,36 @@ int main(int argc, char* argv[]) {
       // Loop through all hits for this event.
       const auto& hits = frame.get<edm4hep::SimCalorimeterHitCollection>(kHitCollection);
       for (const auto& hit : hits) {
-        double biggest_contribution = -1.0;
-        int hit_origin = 0;
+        const int layer = decoder.get(static_cast<std::uint64_t>(hit.getCellID()), "rlayerz");
 
         // Per hit, loop through all contributions.
         for (const auto& contribution : hit.getContributions()) {
           const auto particle = contribution.getParticle();
           const int generator_status = particle.getGeneratorStatus();
+
+          // Convert generatorStatus one of 6 origin indices.
+          // 0 = signal
+          // 1 = synrad
+          // 2 = eBrem
+          // 3 = eTouschek
+          // 4 = eCoulomb
+          // 5 = pBeamGas
           const int contribution_origin = br::origin_index(generator_status);
           const double contribution_energy = contribution.getEnergy();
 
-          // Record generator status of the contribution.
+          // Record raw generator status of the contribution (for debugging)
           status.Fill(generator_status);
+          if (contribution_energy <= 0.0) continue;
 
-          // Define a hit origin by the dominant energy contributor.
-          if (contribution_energy > biggest_contribution) {
-            biggest_contribution = contribution_energy;
-            hit_origin = contribution_origin;
-          }
-        }
+          ++origin_hit_counts[contribution_origin];
 
-        // Fill hists.
-        if (hit.getEnergy() > 0.0) {
-          ++origin_hit_counts[hit_origin];
-          
-          // Decode the hit cellID into the corresponding readout layer and fill the corresponding hist.
-          const int layer = decoder.get(static_cast<std::uint64_t>(hit.getCellID()), "rlayerz");
           if (layer >= 0 && layer < kNReadoutLayers) {
-            br::origins::fill_edep(edep_layers[layer], hit_origin, hit.getEnergy());
+            br::origins::fill_edep(edep_layers[layer], contribution_origin, contribution_energy);
           }
-        }
 
-        // Eta plots.
-        for (auto& eta_hists_for_threshold : eta_hists) {
-          br::origins::fill_eta(eta_hists_for_threshold, hit_origin, hit.getPosition(), hit.getEnergy());
+          for (auto& eta_hists_for_threshold : eta_hists) {
+            br::origins::fill_eta(eta_hists_for_threshold, contribution_origin, hit.getPosition(), contribution_energy);
+          }
         }
       }
     }

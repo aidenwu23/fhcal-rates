@@ -73,3 +73,5 @@ gdml/
 calibrations/
 
 *.root
+
+*__pycache__/

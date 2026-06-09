@@ -1,6 +1,6 @@
 /*
 
-./build/occupancy -i data/reco -o plots/occupancy/occupancy.root
+./build/occupancy -i data/reco_bkg_feb -o plots/occupancy/occupancy.root
 
 */
 
@@ -16,6 +16,7 @@
 #include <edm4eic/CalorimeterHitCollection.h>
 
 #include "decode_channel.h"
+#include "smooth_hists.h"
 #include "utils.h"
 
 #include <algorithm>
@@ -40,7 +41,7 @@ constexpr double kDefaultThresholdGeV = 5e-4;           // Default threshold is 
 constexpr double kEventWindowSec = 2e-6;                // 2 microseconds.
 constexpr int kNLayers = 7;                             // 7 longitudinal readout layers.
 constexpr int kAllLayersIndex = kNLayers;               // Index for merged layer stats.
-constexpr double kCellSizeMM = 50.0;                    // Cell size is 5cm by 5 cm.
+constexpr double kCellSizeMM = 51.2 ;                    // Display bin size in x and y.
 constexpr double kXYExtentMM = 2700.0;                  // +- 2700 mm for x and y ranges.
 
 // Stats per channel (cells sharing transverse location in a readout layer).
@@ -105,11 +106,13 @@ Args parse_args(int argc, char* argv[]) {
   return args;
 }
 
+
+
 void usage(const char* argv0) {
   std::cerr << "Usage: " << argv0 << " -i INPUT_DIR -o OUTPUT.root [-t THRESHOLD_GEV]\n";
 }
 
-// Draw a (custom) histogram on a canvas and write it to the given directory.
+// Draw a (styled) histogram on a canvas and write it to the given directory.
 void draw_and_write(TDirectory* canvas_dir, TH1* hist, const char* canvas_name, bool logz = false, bool logy = false) {
   canvas_dir->cd();
   TCanvas canvas(canvas_name, hist->GetTitle(), 1000, 800);
@@ -134,7 +137,6 @@ int main(int argc, char* argv[]) {
 
   // Create a decoder for cell IDs.
   const br::LFHCALDecoder decoder;
-
   // Find input files.
   const auto files = br::find_root_files(input_dir);
   if (files.empty()) {
@@ -332,6 +334,16 @@ int main(int argc, char* argv[]) {
       const double nch = h_nchan_r->GetBinContent(bin);
       if (nch > 0.0) h_avg_r->SetBinContent(bin, h_avg_r->GetBinContent(bin) / nch);
     }
+
+    br::smooth_hist_vertical(h_avg);
+    br::smooth_hist_vertical(h_max);
+    br::smooth_hist_vertical(h_rate);
+    br::smooth_hist_neighbhors(h_avg);
+    br::smooth_hist_neighbhors(h_max);
+    br::smooth_hist_neighbhors(h_rate);
+    br::smooth_hist_horizontal(h_avg);
+    br::smooth_hist_horizontal(h_max);
+    br::smooth_hist_horizontal(h_rate);
 
     // Output.
     auto* hist_dir = dir->mkdir("hists");

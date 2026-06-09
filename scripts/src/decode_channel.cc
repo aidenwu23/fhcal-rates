@@ -41,7 +41,7 @@ constexpr int kRlayerzWidth = 4;
 constexpr int kLayerzOffset = kRlayerzOffset + kRlayerzWidth;
 constexpr int kLayerzWidth = 4;
 
-// Builds a mask of width 1-bits to extract a desired bitfield.
+// Builds a mask of "width" bits wide to extract a desired bitfield.
 std::uint64_t bit_mask(int width) {
   return (1ULL << width) - 1ULL;
 }
@@ -57,7 +57,6 @@ int decode_bits(std::uint64_t cell_id, int offset, int width) {
 // Build one hash number from the relevant channel fields to create a lookup key.
 std::size_t LFHCALChannelIDHash::operator()(const LFHCALChannelID& channel) const {
 
-  // Init the hash accummulator.
   std::size_t h = 0;
 
   // Create a function that can use outer varibles by reference.

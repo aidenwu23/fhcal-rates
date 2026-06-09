@@ -1,6 +1,6 @@
 /*
 
-./build/rate_summary -i data/reco -o plots/occupancy/rate_summary.csv
+./build/rate_summary -i data/reco_bkg_feb -o plots/occupancy/rate_summary.csv
 
 */
 

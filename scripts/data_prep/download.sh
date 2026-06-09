@@ -7,7 +7,7 @@
   START_INDEX="${1:-0}"
   END_INDEX="${2:-0}"
 
-  LIST="data/metadata/file_list.txt"
+  LIST="${3:-data/metadata/bkg.txt}"
 
   START_LINE=$((START_INDEX + 1))
   END_LINE=$((END_INDEX + 1))
