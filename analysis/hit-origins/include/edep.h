@@ -26,6 +26,6 @@ std::vector<TH1D*> make_summed_edep_hists(const std::vector<const char*>& origin
 
 void sum_edep_into(std::vector<TH1D*>& summed_hists, const LayerEdepHists& layer_hists);
 
-void fill_edep(LayerEdepHists& hists, int origin_index, double hit_energy);
+void fill_edep(LayerEdepHists& hists, int origin_index, double energy);
 
 }  // namespace br::origins

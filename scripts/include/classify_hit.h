@@ -8,6 +8,7 @@ enum class BackgroundClass : int {
   DIS = 0,
   ElectronBeamBackground = 1,
   ProtonBeamBackground = 2,
+  Other = 3,
 };
 
 int origin_index(int status);

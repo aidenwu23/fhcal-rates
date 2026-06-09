@@ -73,15 +73,15 @@ void sum_edep_into(std::vector<TH1D*>& summed_hists, const LayerEdepHists& layer
 }
 
 // Called at the hit level.
-void fill_edep(LayerEdepHists& hists, int origin_index, double hit_energy) {
+void fill_edep(LayerEdepHists& hists, int origin_index, double energy) {
   // Guard against invalid origin indices from the caller.
   if (origin_index < 0 || origin_index >= static_cast<int>(hists.by_origin.size())) {
     throw std::out_of_range("Origin index is out of range");
   }
 
-  if (hit_energy <= 0.0) return;
+  if (energy <= 0.0) return;
 
-  hists.by_origin[origin_index]->Fill(hit_energy);
+  hists.by_origin[origin_index]->Fill(energy);
 }
 
 }  // namespace br::origins

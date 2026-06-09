@@ -5,18 +5,20 @@
 namespace br {
 
 int origin_index(int status) {
-  if (status >= 2000 && status < 3000) return 1;
-  if (status >= 3000 && status < 4000) return 2;
-  if (status >= 4000 && status < 5000) return 3;
-  if (status >= 5000 && status < 6000) return 4;
-  if (status >= 6000 && status < 7000) return 5;
-  return 0;
+  if (status >= 0    && status < 1000) return 0; // signal / DIS family
+  if (status >= 2000 && status < 3000) return 1; // synrad
+  if (status >= 3000 && status < 4000) return 2; // eBrem
+  if (status >= 4000 && status < 5000) return 3; // eTouschek
+  if (status >= 5000 && status < 6000) return 4; // eCoulomb
+  if (status >= 6000 && status < 7000) return 5; // pBeamGas
+  return 6;                                      // other
 }
 
 BackgroundClass classify_background_class(int status) {
+  if (status == 1 || status == 2) return BackgroundClass::DIS;
   if (status >= 6000 && status < 7000) return BackgroundClass::ProtonBeamBackground;
   if (status >= 2000 && status < 6000) return BackgroundClass::ElectronBeamBackground;
-  return BackgroundClass::DIS;
+  return BackgroundClass::Other;
 }
 
 }  // namespace br

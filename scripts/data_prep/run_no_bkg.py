@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 
-python3 scripts/data_prep/run_no_bkg.py 0 99 -o data/reco_no_bkg --delete-intermediates
+python3 scripts/data_prep/run_no_bkg.py 0 99 -o data/reco_no_bkg_apr --delete-intermediates
 
 """
 
@@ -10,7 +10,7 @@ import subprocess
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
-DEFAULT_LIST_FILE = ROOT / "data/metadata/no_bkg.txt"
+DEFAULT_LIST_FILE = ROOT / "data/metadata/no_bkg_apr.txt"
 MISSING_LOG = ROOT / "data/metadata/missing_files.txt"
 DOWNLOAD_SH = ROOT / "scripts/data_prep/download.sh"
 FILTER_BIN = ROOT / "build/filter"

@@ -1,6 +1,6 @@
 /*
 
-./build/hit_origins -i data/reco_bkg_feb -o plots/hit-origins/origins.root
+./build/hit_origins -i data/reco_bkg_apr -o plots/hit-origins/origins.root
 
 */
 
@@ -29,6 +29,7 @@
 #include <fstream>
 #include <iomanip>
 #include <iostream>
+#include <array>
 #include <stdexcept>
 #include <string>
 #include <string_view>
@@ -49,12 +50,13 @@ struct OriginInfo {
 };
 
 const std::vector<OriginInfo> kOrigins = {
-    {"signal", kBlack},
+    {"DIS", kBlack},
     {"synrad", kRed + 1},
     {"eBrem", kBlue + 1},
     {"eTouschek", kMagenta + 1},
     {"eCoulomb", kGreen + 2},
     {"pBeamGas", kOrange + 7},
+    {"other", kGray + 2},
 };
 
 // ----------------------------- handle CLI inputs -----------------------------
@@ -254,34 +256,51 @@ int main(int argc, char* argv[]) {
       const auto& hits = frame.get<edm4hep::SimCalorimeterHitCollection>(kHitCollection);
       for (const auto& hit : hits) {
         const int layer = decoder.get(static_cast<std::uint64_t>(hit.getCellID()), "rlayerz");
+        std::vector<double> energy_by_origin(kOrigins.size(), 0.0);
 
         // Per hit, loop through all contributions.
         for (const auto& contribution : hit.getContributions()) {
           const auto particle = contribution.getParticle();
           const int generator_status = particle.getGeneratorStatus();
 
-          // Convert generatorStatus one of 6 origin indices.
-          // 0 = signal
-          // 1 = synrad
-          // 2 = eBrem
-          // 3 = eTouschek
-          // 4 = eCoulomb
-          // 5 = pBeamGas
+          // Convert generatorStatus one of 7 origin indices.
+
+          // generator status | origin type | contribution origin
+          // ----------------------------------------------------
+          //   [0,1000)       |   DIS       |         0
+          //   [2000,3000)    |   synrad    |         1
+          //   [3000,4000)    |   eBrem     |         2
+          //   [4000,5000)    |   eTouschek |         3
+          //   [5000,6000)    |   eCoulomb  |         4
+          //   [6000,7000)    |   pBeamGas  |         5
+          //   !(0-7000)      |   other     |         6
+
           const int contribution_origin = br::origin_index(generator_status);
           const double contribution_energy = contribution.getEnergy();
 
-          // Record raw generator status of the contribution (for debugging)
           status.Fill(generator_status);
           if (contribution_energy <= 0.0) continue;
 
-          ++origin_hit_counts[contribution_origin];
+          // Fill the corresponding energy entry for this generatorStatus family.
+          // ex. if generator status is from DIS, accumulate element 0.
+          energy_by_origin[contribution_origin] += contribution_energy;
+        }
+
+        // Loop through the stored seen families for this hit.
+        for (std::size_t origin = 0; origin < energy_by_origin.size(); ++origin) {
+
+          // All energy deposited by a certain generatorStatus family in this hit.
+          const double origin_energy = energy_by_origin[origin];
+          if (origin_energy <= 0.0) continue;
+
+          ++origin_hit_counts[origin];
 
           if (layer >= 0 && layer < kNReadoutLayers) {
-            br::origins::fill_edep(edep_layers[layer], contribution_origin, contribution_energy);
+            br::origins::fill_edep(edep_layers[layer], static_cast<int>(origin), origin_energy);
           }
 
           for (auto& eta_hists_for_threshold : eta_hists) {
-            br::origins::fill_eta(eta_hists_for_threshold, contribution_origin, hit.getPosition(), contribution_energy);
+            br::origins::fill_eta(eta_hists_for_threshold, static_cast<int>(origin), hit.getPosition(), origin_energy);
           }
         }
       }
