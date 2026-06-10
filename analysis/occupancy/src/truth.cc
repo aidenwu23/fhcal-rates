@@ -47,7 +47,7 @@ void init_truth_groups(std::vector<TruthOccupancyGroup>& groups) {
 }
 
 bool process_truth_event(const podio::Frame& frame,
-                         const br::LFHCALDecoder& decoder,
+                         const br::LFHCALCellIDDecoder& decoder,
                          double threshold_geV,
                          std::vector<TruthOccupancyGroup>& groups) {
   if (!br::has_collection(frame, kTruthHitCollection)) return false;
@@ -68,7 +68,7 @@ bool process_truth_event(const podio::Frame& frame,
     const auto channel_id = decoder.channel(cell_id);
     const int layer = channel_id.rlayerz;
     if (layer < 0 || layer >= kNLayers) continue;
-    const auto pos = hit.getPosition();
+    const auto cell_position = decoder.position(cell_id);
 
     std::array<double, kAllTruthIndex> energy_by_origin{};
 
@@ -94,9 +94,7 @@ bool process_truth_event(const podio::Frame& frame,
                                     int bucket_layer) {
         auto& stats = origin_bucket.layers[bucket_layer].channels[channel_id];
         stats.raw_cell_ids.insert(cell_id);
-        stats.x_sum += pos.x;
-        stats.y_sum += pos.y;
-        ++stats.n_pos;
+        stats.set_position(cell_position.x_mm, cell_position.y_mm);
 
         ++event_counts[origin_bucket_index][bucket_layer][channel_id];
         ++layer_totals[origin_bucket_index][bucket_layer];
@@ -112,9 +110,7 @@ bool process_truth_event(const podio::Frame& frame,
                                      int bucket_layer) {
       auto& stats = all_bucket.layers[bucket_layer].channels[channel_id];
       stats.raw_cell_ids.insert(cell_id);
-      stats.x_sum += pos.x;
-      stats.y_sum += pos.y;
-      ++stats.n_pos;
+      stats.set_position(cell_position.x_mm, cell_position.y_mm);
 
       ++event_counts[all_bucket_index][bucket_layer][channel_id];
       ++layer_totals[all_bucket_index][bucket_layer];

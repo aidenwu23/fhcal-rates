@@ -8,7 +8,7 @@ target_compile_features(occupancy PRIVATE cxx_std_17)
 target_include_directories(occupancy PRIVATE ${CMAKE_SOURCE_DIR}/scripts/include ${CMAKE_CURRENT_SOURCE_DIR}/include)
 target_sources(occupancy PRIVATE
   ${CMAKE_SOURCE_DIR}/scripts/src/utils.cc
-  ${CMAKE_SOURCE_DIR}/scripts/src/decode_channel.cc
+  ${CMAKE_SOURCE_DIR}/scripts/src/decode_cell_id.cc
   ${CMAKE_SOURCE_DIR}/scripts/src/smooth_hists.cc
   ${CMAKE_SOURCE_DIR}/scripts/src/classify_hit.cc
   ${CMAKE_CURRENT_SOURCE_DIR}/src/reco.cc
@@ -41,7 +41,7 @@ install(TARGETS occupancy RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
 add_executable(rate_summary rate_summary.cc)
 target_compile_features(rate_summary PRIVATE cxx_std_17)
 target_include_directories(rate_summary PRIVATE ${CMAKE_SOURCE_DIR}/scripts/include)
-target_sources(rate_summary PRIVATE ${CMAKE_SOURCE_DIR}/scripts/src/utils.cc ${CMAKE_SOURCE_DIR}/scripts/src/classify_hit.cc ${CMAKE_SOURCE_DIR}/scripts/src/decode_channel.cc)
+target_sources(rate_summary PRIVATE ${CMAKE_SOURCE_DIR}/scripts/src/utils.cc ${CMAKE_SOURCE_DIR}/scripts/src/classify_hit.cc ${CMAKE_SOURCE_DIR}/scripts/src/decode_cell_id.cc)
 target_link_libraries(
   rate_summary
   PRIVATE

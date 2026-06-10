@@ -29,10 +29,19 @@ struct LFHCALChannelIDHash {
   std::size_t operator()(const LFHCALChannelID& channel) const;
 };
 
-class LFHCALDecoder {
+struct LFHCALCellPosition {
+  double x_mm = 0.0;
+  double y_mm = 0.0;
+};
+
+class LFHCALCellIDDecoder {
  public:
   int get(std::uint64_t cell_id, std::string_view field) const;
   LFHCALChannelID channel(std::uint64_t cell_id) const;
+  bool is_passive(std::uint64_t cell_id) const;
+  LFHCALCellPosition position(std::uint64_t cell_id) const;
 };
+
+using LFHCALDecoder = LFHCALCellIDDecoder;
 
 }  // namespace br

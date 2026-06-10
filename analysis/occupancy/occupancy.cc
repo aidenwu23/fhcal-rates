@@ -13,7 +13,7 @@
 #include <podio/Frame.h>
 #include <podio/ROOTReader.h>
 
-#include "decode_channel.h"
+#include "decode_cell_id.h"
 #include "reco.h"
 #include "smooth_hists.h"
 #include "truth.h"
@@ -23,6 +23,7 @@
 #include <cmath>
 #include <filesystem>
 #include <iostream>
+#include <set>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -34,8 +35,7 @@ namespace {
 // Constants
 constexpr double kDefaultThresholdGeV = 5e-4;           // Default threshold is 0.5 MeV.
 constexpr double kEventWindowSec = 2e-6;                // 2 microseconds.
-constexpr double kCellSizeMM = 51.0;                    // Display bin size in x and y.
-constexpr double kXYExtentMM = 2700;                    // +- range for x and y.
+constexpr double kDisplayPaddingMM = 25.0;              // Half-cell padding around outermost decoded centers.
 
 struct Args {
   std::string input_dir;
@@ -87,6 +87,27 @@ void draw_and_write(TDirectory* canvas_dir, TH1* hist, const char* canvas_name, 
   canvas.Write();
 }
 
+std::vector<double> make_axis_edges(const std::set<double>& coords) {
+  if (coords.empty()) return {-kDisplayPaddingMM, kDisplayPaddingMM};
+
+  std::vector<double> values(coords.begin(), coords.end());
+  std::vector<double> edges;
+  edges.reserve(values.size() + 1);
+
+  if (values.size() == 1) {
+    edges.push_back(values.front() - kDisplayPaddingMM);
+    edges.push_back(values.front() + kDisplayPaddingMM);
+    return edges;
+  }
+
+  edges.push_back(values.front() - 0.5 * (values[1] - values[0]));
+  for (std::size_t i = 0; i + 1 < values.size(); ++i) {
+    edges.push_back(0.5 * (values[i] + values[i + 1]));
+  }
+  edges.push_back(values.back() + 0.5 * (values.back() - values[values.size() - 2]));
+  return edges;
+}
+
 void write_layer_directory(TDirectory* parent,
                            const br::occupancy::LayerAccum& layer_accum,
                            int layer,
@@ -107,33 +128,36 @@ void write_layer_directory(TDirectory* parent,
     (void)channel_id;
     rmax = std::max(rmax, stats.r());
   }
-  const double xmin = -kXYExtentMM;
-  const double xmax = kXYExtentMM;
-  const double ymin = -kXYExtentMM;
-  const double ymax = kXYExtentMM;
-  const int xbins = static_cast<int>(std::ceil((xmax - xmin) / kCellSizeMM));
-  const int ybins = static_cast<int>(std::ceil((ymax - ymin) / kCellSizeMM));
+  std::set<double> x_coords;
+  std::set<double> y_coords;
+  for (const auto& [channel_id, stats] : layer_accum.channels) {
+    (void)channel_id;
+    x_coords.insert(stats.x());
+    y_coords.insert(stats.y());
+  }
+  const auto x_edges = make_axis_edges(x_coords);
+  const auto y_edges = make_axis_edges(y_coords);
 
   auto* h_avg = new TH2D(
       "h_avg",
       (layer == br::occupancy::kAllLayersIndex ? std::string("Summed layers;x [mm];y [mm];avg hits/event/channel")
         : std::string("Layer ") + std::to_string(layer) + ";x [mm];y [mm];avg hits/event/channel").c_str(),
-      xbins, xmin, xmax,
-      ybins, ymin, ymax);
+      static_cast<int>(x_edges.size()) - 1, x_edges.data(),
+      static_cast<int>(y_edges.size()) - 1, y_edges.data());
 
   auto* h_max = new TH2D(
       "h_max",
       (layer == br::occupancy::kAllLayersIndex ? std::string("Summed layers;x [mm];y [mm];max hits/event/channel")
         : std::string("Layer ") + std::to_string(layer) + ";x [mm];y [mm];max hits/event/channel").c_str(),
-      xbins, xmin, xmax,
-      ybins, ymin, ymax);
+      static_cast<int>(x_edges.size()) - 1, x_edges.data(),
+      static_cast<int>(y_edges.size()) - 1, y_edges.data());
 
   auto* h_rate = new TH2D(
       "h_rate",
       (layer == br::occupancy::kAllLayersIndex ? std::string("Summed layers;x [mm];y [mm];rate [Hz/channel]")
         : std::string("Layer ") + std::to_string(layer) + ";x [mm];y [mm];rate [Hz/channel]").c_str(),
-      xbins, xmin, xmax,
-      ybins, ymin, ymax);
+      static_cast<int>(x_edges.size()) - 1, x_edges.data(),
+      static_cast<int>(y_edges.size()) - 1, y_edges.data());
 
   auto* h_avg_r = new TH1D(
       "h_avg_r",
@@ -158,16 +182,6 @@ void write_layer_directory(TDirectory* parent,
     const double nch = h_nchan_r->GetBinContent(bin);
     if (nch > 0.0) h_avg_r->SetBinContent(bin, h_avg_r->GetBinContent(bin) / nch);
   }
-
-  br::smooth_hist_vertical(h_avg);
-  br::smooth_hist_vertical(h_max);
-  br::smooth_hist_vertical(h_rate);
-  br::smooth_hist_neighbhors(h_avg);
-  br::smooth_hist_neighbhors(h_max);
-  br::smooth_hist_neighbhors(h_rate);
-  br::smooth_hist_horizontal(h_avg);
-  br::smooth_hist_horizontal(h_max);
-  br::smooth_hist_horizontal(h_rate);
 
   auto* hist_dir = dir->mkdir("hists");
   hist_dir->cd();
@@ -217,7 +231,7 @@ int main(int argc, char* argv[]) {
   const double threshold_geV = args.threshold_geV;
 
   // Create a decoder for cell IDs.
-  const br::LFHCALDecoder decoder;
+  const br::LFHCALCellIDDecoder decoder;
   // Find input files.
   const auto files = br::find_root_files(input_dir);
   if (files.empty()) {

@@ -11,7 +11,7 @@
 #include <edm4hep/SimCalorimeterHitCollection.h>
 
 #include "classify_hit.h"
-#include "decode_channel.h"
+#include "decode_cell_id.h"
 #include "utils.h"
 
 #include <algorithm>
@@ -157,7 +157,7 @@ int main(int argc, char* argv[]) {
   const auto args = parse_args(argc, argv);
   const auto files = br::find_root_files(args.input_dir);
   const double threshold_geV = args.threshold_geV;
-  const br::LFHCALDecoder decoder;
+  const br::LFHCALCellIDDecoder decoder;
   if (files.empty()) {
     std::cerr << "No ROOT files found in " << args.input_dir << "\n";
     return 1;

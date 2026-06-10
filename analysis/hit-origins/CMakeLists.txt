@@ -8,7 +8,7 @@ target_include_directories(hit_origins PRIVATE ${CMAKE_SOURCE_DIR}/scripts/inclu
 target_sources(hit_origins PRIVATE
   ${CMAKE_SOURCE_DIR}/scripts/src/utils.cc
   ${CMAKE_SOURCE_DIR}/scripts/src/classify_hit.cc
-  ${CMAKE_SOURCE_DIR}/scripts/src/decode_channel.cc
+  ${CMAKE_SOURCE_DIR}/scripts/src/decode_cell_id.cc
   ${CMAKE_CURRENT_SOURCE_DIR}/src/eta.cc
   ${CMAKE_CURRENT_SOURCE_DIR}/src/edep.cc)
 target_link_libraries(

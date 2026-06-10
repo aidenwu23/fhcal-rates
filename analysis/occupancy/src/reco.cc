@@ -16,8 +16,13 @@ namespace {
 constexpr const char* kRecoHitCollection = "LFHCALRecHits";
 }  // namespace
 
-double ChannelStats::x() const { return n_pos > 0 ? x_sum / static_cast<double>(n_pos) : 0.0; }
-double ChannelStats::y() const { return n_pos > 0 ? y_sum / static_cast<double>(n_pos) : 0.0; }
+void ChannelStats::set_position(double x, double y) {
+  x_mm = x;
+  y_mm = y;
+  has_position = true;
+}
+double ChannelStats::x() const { return has_position ? x_mm : 0.0; }
+double ChannelStats::y() const { return has_position ? y_mm : 0.0; }
 double ChannelStats::r() const { return std::hypot(x(), y()); }
 
 void init_reco_layers(std::vector<LayerAccum>& layers) {
@@ -34,7 +39,7 @@ void init_reco_layers(std::vector<LayerAccum>& layers) {
 }
 
 bool process_reco_event(const podio::Frame& frame,
-                        const br::LFHCALDecoder& decoder,
+                        const br::LFHCALCellIDDecoder& decoder,
                         double threshold_geV,
                         std::vector<LayerAccum>& layers) {
   // Grab LFHCALRecHits when possible.
@@ -59,16 +64,14 @@ bool process_reco_event(const podio::Frame& frame,
     // Decode channel ID from cell ID.
     const auto cell_id = static_cast<std::uint64_t>(hit.getCellID());
     const auto channel_id = decoder.channel(cell_id);
-    const auto pos = hit.getPosition();
+    const auto cell_position = decoder.position(cell_id);
 
     // Does one of two things:
     // 1. There are no preeixsting channels with this ID --> create new channel.
     // 2. There is a preexisting channel with this ID --> use that one.
     auto& stats = layers[layer].channels[channel_id];
     stats.raw_cell_ids.insert(cell_id);
-    stats.x_sum += pos.x;
-    stats.y_sum += pos.y;
-    ++stats.n_pos;
+    stats.set_position(cell_position.x_mm, cell_position.y_mm);
 
     // Count one more hit in this channel for the current event.
     ++event_counts[layer][channel_id];
@@ -77,9 +80,7 @@ bool process_reco_event(const podio::Frame& frame,
     // Also update the "all layers together" bucket.
     auto& merged_stats = layers[kAllLayersIndex].channels[channel_id];
     merged_stats.raw_cell_ids.insert(cell_id);
-    merged_stats.x_sum += pos.x;
-    merged_stats.y_sum += pos.y;
-    ++merged_stats.n_pos;
+    merged_stats.set_position(cell_position.x_mm, cell_position.y_mm);
     ++event_counts[kAllLayersIndex][channel_id];
     ++layer_totals[kAllLayersIndex];
   }

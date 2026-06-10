@@ -18,7 +18,7 @@
 #include <edm4hep/SimCalorimeterHitCollection.h>
 
 #include "classify_hit.h"
-#include "decode_channel.h"
+#include "decode_cell_id.h"
 #include "edep.h"
 #include "eta.h"
 #include "utils.h"
@@ -186,7 +186,7 @@ int main(int argc, char* argv[]) {
   }
 
   // Make a decoder.
-  const br::LFHCALDecoder decoder;
+  const br::LFHCALCellIDDecoder decoder;
   const auto edges = br::log_edges(260, 1e-10, 10.0); // Log edges for nicer display.
 
   // Used for styling histograms.
