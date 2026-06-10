@@ -1,6 +1,6 @@
 /*
 
-./build/eta_all -i data/reco_bkg_apr -o plots/hit-origins/eta_all.root
+./build/MC_eta_and_energy -i data/reco_bkg_apr -o plots/hit-origins/MC_eta_and_energy.root
 
 */
 
@@ -146,20 +146,11 @@ int main(int argc, char* argv[]) {
 
   const auto energy_edges = br::log_edges(260, 1e-6, 1e3);
   for (const auto& origin : kOrigins) {
-    auto* h_energy = new TH1D(
-        (std::string("h_mc_energy_") + origin.label).c_str(),
-        "MCParticle origin;E [GeV];Particles",
-        260,
-        energy_edges.data());
+    auto* h_energy = new TH1D((std::string("h_mc_energy_") + origin.label).c_str(), "MCParticle origin;E [GeV];Particles", 260, energy_edges.data());
     style(h_energy, origin.color);
     h_energy_by_origin.push_back(h_energy);
 
-    auto* h_eta = new TH1D(
-        (std::string("h_mc_eta_") + origin.label).c_str(),
-        "MCParticle origin;#eta;Particles",
-        180,
-        -9.0,
-        9.0);
+    auto* h_eta = new TH1D((std::string("h_mc_eta_") + origin.label).c_str(), "MCParticle origin;#eta;Particles",180, -9.0, 9.0);
     style(h_eta, origin.color);
     h_eta_by_origin.push_back(h_eta);
   }

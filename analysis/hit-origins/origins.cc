@@ -273,7 +273,7 @@ int main(int argc, char* argv[]) {
           //   [4000,5000)    |   eTouschek |         3
           //   [5000,6000)    |   eCoulomb  |         4
           //   [6000,7000)    |   pBeamGas  |         5
-          //   !(0-7000)      |   other     |         6
+          //   others         |   other     |         6
 
           const int contribution_origin = br::origin_index(generator_status);
           const double contribution_energy = contribution.getEnergy();

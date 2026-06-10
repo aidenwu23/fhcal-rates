@@ -25,14 +25,14 @@ target_link_libraries(
 
 install(TARGETS hit_origins RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
 
-add_executable(eta_all eta_all.cc)
-target_compile_features(eta_all PRIVATE cxx_std_17)
-target_include_directories(eta_all PRIVATE ${CMAKE_SOURCE_DIR}/scripts/include)
-target_sources(eta_all PRIVATE
+add_executable(MC_eta_and_energy MC_eta_and_energy.cc)
+target_compile_features(MC_eta_and_energy PRIVATE cxx_std_17)
+target_include_directories(MC_eta_and_energy PRIVATE ${CMAKE_SOURCE_DIR}/scripts/include)
+target_sources(MC_eta_and_energy PRIVATE
   ${CMAKE_SOURCE_DIR}/scripts/src/utils.cc
   ${CMAKE_SOURCE_DIR}/scripts/src/classify_hit.cc)
 target_link_libraries(
-  eta_all
+  MC_eta_and_energy
   PRIVATE
     podio::podio
     podio::podioRootIO
@@ -43,7 +43,7 @@ target_link_libraries(
     ROOT::Graf
     ROOT::Gpad)
 
-install(TARGETS eta_all RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
+install(TARGETS MC_eta_and_energy RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
 
 add_executable(multiplicity multiplicity.cc)
 target_compile_features(multiplicity PRIVATE cxx_std_17)

@@ -20,6 +20,7 @@
 #include <fstream>
 #include <iomanip>
 #include <iostream>
+#include <array>
 #include <string>
 #include <string_view>
 #include <unordered_map>
@@ -194,14 +195,30 @@ int main(int argc, char* argv[]) {
         // Supress low-energy hits.
         if (hit.getEnergy() <= threshold_geV) continue;
 
-        // Grab dominant contribution and increment stats.
         const auto cell_id = static_cast<std::uint64_t>(hit.getCellID());
-        const auto channel_id = decoder.channel(cell_id); // Assign the cell to a channel using the decoder.
-        const Column source = static_cast<Column>(br::classify_background_class(br::dominant_status(hit)));
-        const int source_index = static_cast<int>(source);
+        const auto channel_id = decoder.channel(cell_id);
+        std::array<bool, 3> source_present = {false, false, false};
 
-        ++columns[source_index].channel_hits[channel_id];
-        ++columns[source_index].total_hits;
+        for (const auto& contribution : hit.getContributions()) {
+          if (contribution.getEnergy() <= 0.0) continue;
+
+          const auto source = br::classify_background_class(
+              contribution.getParticle().getGeneratorStatus());
+          if (source == br::BackgroundClass::DIS) {
+            source_present[static_cast<int>(Column::DIS)] = true;
+          } else if (source == br::BackgroundClass::ElectronBeamBackground) {
+            source_present[static_cast<int>(Column::ElectronBeamBackground)] = true;
+          } else if (source == br::BackgroundClass::ProtonBeamBackground) {
+            source_present[static_cast<int>(Column::ProtonBeamBackground)] = true;
+          }
+        }
+
+        for (int source_index = 0; source_index < 3; ++source_index) {
+          if (!source_present[source_index]) continue;
+          ++columns[source_index].channel_hits[channel_id];
+          ++columns[source_index].total_hits;
+        }
+
         ++columns[static_cast<int>(Column::AllSources)].channel_hits[channel_id];
         ++columns[static_cast<int>(Column::AllSources)].total_hits;
       }

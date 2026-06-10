@@ -5,8 +5,14 @@ find_package(EDM4EIC REQUIRED)
 
 add_executable(occupancy occupancy.cc)
 target_compile_features(occupancy PRIVATE cxx_std_17)
-target_include_directories(occupancy PRIVATE ${CMAKE_SOURCE_DIR}/scripts/include)
-target_sources(occupancy PRIVATE ${CMAKE_SOURCE_DIR}/scripts/src/utils.cc ${CMAKE_SOURCE_DIR}/scripts/src/decode_channel.cc ${CMAKE_SOURCE_DIR}/scripts/src/smooth_hists.cc)
+target_include_directories(occupancy PRIVATE ${CMAKE_SOURCE_DIR}/scripts/include ${CMAKE_CURRENT_SOURCE_DIR}/include)
+target_sources(occupancy PRIVATE
+  ${CMAKE_SOURCE_DIR}/scripts/src/utils.cc
+  ${CMAKE_SOURCE_DIR}/scripts/src/decode_channel.cc
+  ${CMAKE_SOURCE_DIR}/scripts/src/smooth_hists.cc
+  ${CMAKE_SOURCE_DIR}/scripts/src/classify_hit.cc
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/reco.cc
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/truth.cc)
 set(_edm4eic_targets)
 foreach(tgt EDM4EIC::edm4eic EDM4eic::edm4eic edm4eic::edm4eic)
   if(TARGET ${tgt})
