@@ -87,6 +87,7 @@ void draw_and_write(TDirectory* canvas_dir, TH1* hist, const char* canvas_name, 
   canvas.Write();
 }
 
+// Make axis edges based on a set of cell x and y coordinates.
 std::vector<double> make_axis_edges(const std::set<double>& coords) {
   if (coords.empty()) return {-kDisplayPaddingMM, kDisplayPaddingMM};
 
@@ -100,14 +101,17 @@ std::vector<double> make_axis_edges(const std::set<double>& coords) {
     return edges;
   }
 
+  // Edges are halfway between neighborhing cells.
   edges.push_back(values.front() - 0.5 * (values[1] - values[0]));
   for (std::size_t i = 0; i + 1 < values.size(); ++i) {
     edges.push_back(0.5 * (values[i] + values[i + 1]));
   }
+
   edges.push_back(values.back() + 0.5 * (values.back() - values[values.size() - 2]));
   return edges;
 }
 
+// Write all plots for one readout layer.
 void write_layer_directory(TDirectory* parent,
                            const br::occupancy::LayerAccum& layer_accum,
                            int layer,
@@ -199,6 +203,7 @@ void write_layer_directory(TDirectory* parent,
   draw_and_write(dir, layer_accum.h_hits_evt, "c_hits_evt", false, true);
 }
 
+// Reco doesn't have contributions, so just write one for every layer.
 void write_reco(TFile& output,
                 const std::vector<br::occupancy::LayerAccum>& reco_layers,
                 std::uint64_t n_events) {
@@ -208,6 +213,7 @@ void write_reco(TFile& output,
   }
 }
 
+// Truth has access to contributions, so write one for each origin type in addition to one for every layer.
 void write_truth(TFile& output,
                  const std::vector<br::occupancy::TruthOccupancyGroup>& truth_groups,
                  std::uint64_t n_events) {
