@@ -61,13 +61,13 @@ int decode_bits(std::uint64_t cell_id, int offset, int width) {
 
 /*
 LFHCAL_geo.cpp uses:
-  moduleIDx = (pos8M.x + 270) / 10
-  placement x = -pos8M.x
+  moduleIDx = (pos8M.x + 270) / 10                      (line 1122)
+  placement x = -pos8M.x 
 
 Therefore the 8M module center in world coordinates is:
   x_cm = 270 - 10 * moduleIDx
 
-The four ideal 8M tower centers are:
+The four ideal 8M tower centers are:                    (lines 306-309)
   +7.5, +2.5, -2.5, -7.5 cm
 which is:
   7.5 - 5 * towerx
@@ -78,13 +78,13 @@ double x_cm_8m(int module_id_x, int tower_x) {
 
 /*
 LFHCAL_geo.cpp uses:
-  moduleIDx = (pos4M.x + 265) / 10
+  moduleIDx = (pos4M.x + 265) / 10                      (line 1151)
   placement x = -pos4M.x
 
 Therefore the 4M module center in world coordinates is:
   x_cm = 265 - 10 * moduleIDx
 
-The two ideal 4M tower centers are:
+The two ideal 4M tower centers are:                     (lines 434-435)
   +2.5, -2.5 cm
 which is:
   2.5 - 5 * towerx
@@ -95,13 +95,13 @@ double x_cm_4m(int module_id_x, int tower_x) {
 
 /*
 LFHCAL_geo.cpp uses:
-  moduleIDy = (pos.y + 265) / 10
+  moduleIDy = (pos.y + 265) / 10                        (lines 1123, 1152)
   placement y = -pos.y
 
 Therefore the module center in world coordinates is:
   y_cm = 265 - 10 * moduleIDy
 
-Both module families use two y towers with centers:
+Both module families use two y towers with centers:     (lines 310-312, 436-437)
   +2.5, -2.5 cm
 which is:
   2.5 - 5 * towery
