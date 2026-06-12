@@ -68,6 +68,7 @@ bool process_truth_event(const podio::Frame& frame,
     const auto channel_id = decoder.channel(cell_id);
     const int layer = channel_id.rlayerz;
     if (layer < 0 || layer >= kNLayers) continue;
+
     const auto cell_position = decoder.position(cell_id);
 
     std::array<double, kAllTruthIndex> energy_by_origin{};
@@ -88,16 +89,16 @@ bool process_truth_event(const podio::Frame& frame,
       // Skip if this origin contributes no energy.
       if (energy_by_origin[origin_index] <= 0.0) continue;
 
-      // Otherwise fill the corresponding readout layer's plot for this origin once.
-      auto fill_origin_bucket = [&](TruthOccupancyGroup& origin_bucket,
-                                    int origin_bucket_index,
-                                    int bucket_layer) {
-        auto& stats = origin_bucket.layers[bucket_layer].channels[channel_id];
+      // Otherwise fill the corresponding readout layer's plot for this origin.
+      auto fill_origin_bucket = [&](TruthOccupancyGroup& origin_group,
+                                    int group_index,
+                                    int layer_index) {
+        auto& stats = origin_group.layers[layer_index].channels[channel_id]; // Create stats for this layer's channel.
         stats.raw_cell_ids.insert(cell_id);
         stats.set_position(cell_position.x_mm, cell_position.y_mm);
 
-        ++event_counts[origin_bucket_index][bucket_layer][channel_id];
-        ++layer_totals[origin_bucket_index][bucket_layer];
+        ++event_counts[group_index][layer_index][channel_id]; // Increment hit count for this origin.
+        ++layer_totals[group_index][layer_index];
       };
 
       fill_origin_bucket(groups[origin_index], origin_index, layer);
@@ -105,30 +106,33 @@ bool process_truth_event(const podio::Frame& frame,
     }
 
     // Also update the inclusive truth bucket once per hit.
-    auto fill_all_truth_bucket = [&](TruthOccupancyGroup& all_bucket,
-                                     int all_bucket_index,
-                                     int bucket_layer) {
-      auto& stats = all_bucket.layers[bucket_layer].channels[channel_id];
+    auto fill_all_truth_bucket = [&](TruthOccupancyGroup& all_group,
+                                     int all_group_index,
+                                     int layer_index) {
+      auto& stats = all_group.layers[layer_index].channels[channel_id];
       stats.raw_cell_ids.insert(cell_id);
       stats.set_position(cell_position.x_mm, cell_position.y_mm);
 
-      ++event_counts[all_bucket_index][bucket_layer][channel_id];
-      ++layer_totals[all_bucket_index][bucket_layer];
+      ++event_counts[all_group_index][layer_index][channel_id];
+      ++layer_totals[all_group_index][layer_index];
     };
     fill_all_truth_bucket(groups[kAllTruthIndex], kAllTruthIndex, layer);
     fill_all_truth_bucket(groups[kAllTruthIndex], kAllTruthIndex, kAllLayersIndex);
   }
 
-  // End of this event:
-  // move the temporary per-event counts into the long-lived channel statistics.
+  // For each generatorStatus family...
   for (std::size_t group_index = 0; group_index < groups.size(); ++group_index) {
     auto& group = groups[group_index];
+
+    // For each readout layer...
     for (int layer = 0; layer <= kNLayers; ++layer) {
       group.layers[layer].h_hits_evt->Fill(layer_totals[group_index][layer]);
+
+      // For each channel, acumulate stats.
       for (const auto& [channel_id, count] : event_counts[group_index][layer]) {
         auto& stats = group.layers[layer].channels[channel_id];
-        stats.total_hits += static_cast<std::uint64_t>(count);
-        stats.max_hits_event = std::max(stats.max_hits_event, count);
+        stats.total_hits += static_cast<std::uint64_t>(count);  // Increment total hit count from this event.
+        stats.max_hits_event = std::max(stats.max_hits_event, count); // Keep track of one with most hits.
       }
     }
   }

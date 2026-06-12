@@ -15,7 +15,6 @@
 
 #include "decode_cell_id.h"
 #include "reco.h"
-#include "smooth_hists.h"
 #include "truth.h"
 #include "utils.h"
 
@@ -23,6 +22,7 @@
 #include <cmath>
 #include <filesystem>
 #include <iostream>
+#include <optional>
 #include <set>
 #include <string>
 #include <string_view>
@@ -33,7 +33,7 @@ namespace fs = std::filesystem;
 namespace {
 
 // Constants
-constexpr double kDefaultThresholdGeV = 5e-4;           // Default threshold is 0.5 MeV.
+constexpr double kDefaultThresholdGeV = 0.001;
 constexpr double kEventWindowSec = 2e-6;                // 2 microseconds.
 constexpr double kDisplayPaddingMM = 25.0;              // Half-cell padding around outermost decoded centers.
 
@@ -87,7 +87,12 @@ void draw_and_write(TDirectory* canvas_dir, TH1* hist, const char* canvas_name, 
   canvas.Write();
 }
 
-// Make axis edges based on a set of cell x and y coordinates.
+struct AxisEdges2D {
+  std::vector<double> x_edges;
+  std::vector<double> y_edges;
+};
+
+// Make axis edges based on a set of cell x or y coordinates.
 std::vector<double> make_axis_edges(const std::set<double>& coords) {
   if (coords.empty()) return {-kDisplayPaddingMM, kDisplayPaddingMM};
 
@@ -111,11 +116,23 @@ std::vector<double> make_axis_edges(const std::set<double>& coords) {
   return edges;
 }
 
-// Write all plots for one readout layer.
+AxisEdges2D make_layer_axis_edges(const br::occupancy::LayerAccum& layer_accum) {
+  std::set<double> x_coords;
+  std::set<double> y_coords;
+  for (const auto& [channel_id, stats] : layer_accum.channels) {
+    (void)channel_id;
+    x_coords.insert(stats.x());
+    y_coords.insert(stats.y());
+  }
+  return AxisEdges2D{make_axis_edges(x_coords), make_axis_edges(y_coords)};
+}
+
+// Write all plots for one readout z layer.
 void write_layer_directory(TDirectory* parent,
                            const br::occupancy::LayerAccum& layer_accum,
                            int layer,
-                           std::uint64_t n_events) {
+                           std::uint64_t n_events,
+                           const std::optional<AxisEdges2D>& reference_edges = std::nullopt) {
   const std::string dir_name = layer == br::occupancy::kAllLayersIndex ? "sum_layers" : std::string("layer") + std::to_string(layer);
   auto* dir = parent->mkdir(dir_name.c_str());
   dir->cd();
@@ -132,15 +149,9 @@ void write_layer_directory(TDirectory* parent,
     (void)channel_id;
     rmax = std::max(rmax, stats.r());
   }
-  std::set<double> x_coords;
-  std::set<double> y_coords;
-  for (const auto& [channel_id, stats] : layer_accum.channels) {
-    (void)channel_id;
-    x_coords.insert(stats.x());
-    y_coords.insert(stats.y());
-  }
-  const auto x_edges = make_axis_edges(x_coords);
-  const auto y_edges = make_axis_edges(y_coords);
+  const AxisEdges2D axis_edges = reference_edges.has_value() ? *reference_edges : make_layer_axis_edges(layer_accum);
+  const auto& x_edges = axis_edges.x_edges;
+  const auto& y_edges = axis_edges.y_edges;
 
   auto* h_avg = new TH2D(
       "h_avg",
@@ -171,6 +182,7 @@ void write_layer_directory(TDirectory* parent,
 
   auto* h_nchan_r = new TH1D("h_nchan_r", "", 100, 0.0, std::max(1.0, 1.05 * rmax));
 
+  // Fill hists.
   for (const auto& [channel_id, stats] : layer_accum.channels) {
     (void)channel_id;
     const double avg = static_cast<double>(stats.total_hits) / static_cast<double>(n_events);
@@ -217,10 +229,25 @@ void write_reco(TFile& output,
 void write_truth(TFile& output,
                  const std::vector<br::occupancy::TruthOccupancyGroup>& truth_groups,
                  std::uint64_t n_events) {
+
+  // Use DIS for bin edges since DIS typically has lots of stats.
+  std::vector<std::optional<AxisEdges2D>> dis_reference_edges(br::occupancy::kNLayers + 1);
+  const auto dis_it = std::find_if(
+      truth_groups.begin(),
+      truth_groups.end(),
+      [](const br::occupancy::TruthOccupancyGroup& group) { return group.label == "DIS"; });
+  if (dis_it != truth_groups.end()) {
+    for (int layer = 0; layer <= br::occupancy::kNLayers; ++layer) {
+      if (!dis_it->layers[layer].channels.empty()) {
+        dis_reference_edges[layer] = make_layer_axis_edges(dis_it->layers[layer]);
+      }
+    }
+  }
+
   for (const auto& truth_group : truth_groups) {
     auto* parent = output.mkdir(truth_group.label.c_str());
     for (int layer = 0; layer <= br::occupancy::kNLayers; ++layer) {
-      write_layer_directory(parent, truth_group.layers[layer], layer, n_events);
+      write_layer_directory(parent, truth_group.layers[layer], layer, n_events, dis_reference_edges[layer]);
     }
   }
 }

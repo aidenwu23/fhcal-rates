@@ -31,7 +31,7 @@ namespace fs = std::filesystem;
 namespace {
 
 constexpr const char* kHitCollection = "LFHCALHits";
-constexpr double kDefaultThresholdGeV = 5e-4;
+constexpr double kDefaultThresholdGeV = 0.0;
 constexpr double kEventWindowSec = 2e-6;
 
 struct Args {

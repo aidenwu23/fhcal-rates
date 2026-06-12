@@ -38,6 +38,44 @@ target_link_libraries(
 
 install(TARGETS occupancy RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
 
+add_executable(longitudinal_occupancy longitudinal_occupancy.cc)
+target_compile_features(longitudinal_occupancy PRIVATE cxx_std_17)
+target_include_directories(longitudinal_occupancy PRIVATE ${CMAKE_SOURCE_DIR}/scripts/include)
+target_sources(longitudinal_occupancy PRIVATE ${CMAKE_SOURCE_DIR}/scripts/src/utils.cc ${CMAKE_SOURCE_DIR}/scripts/src/decode_cell_id.cc ${CMAKE_SOURCE_DIR}/scripts/src/classify_hit.cc)
+target_link_libraries(
+  longitudinal_occupancy
+  PRIVATE
+    podio::podio
+    podio::podioRootIO
+    EDM4HEP::edm4hep
+    ${_edm4eic_targets}
+    ROOT::Core
+    ROOT::RIO
+    ROOT::Hist
+    ROOT::Graf
+    ROOT::Gpad)
+
+install(TARGETS longitudinal_occupancy RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
+
+add_executable(channel_multiplicity channel_multiplicity.cc)
+target_compile_features(channel_multiplicity PRIVATE cxx_std_17)
+target_include_directories(channel_multiplicity PRIVATE ${CMAKE_SOURCE_DIR}/scripts/include)
+target_sources(channel_multiplicity PRIVATE ${CMAKE_SOURCE_DIR}/scripts/src/utils.cc ${CMAKE_SOURCE_DIR}/scripts/src/decode_cell_id.cc ${CMAKE_SOURCE_DIR}/scripts/src/classify_hit.cc)
+target_link_libraries(
+  channel_multiplicity
+  PRIVATE
+    podio::podio
+    podio::podioRootIO
+    EDM4HEP::edm4hep
+    ${_edm4eic_targets}
+    ROOT::Core
+    ROOT::RIO
+    ROOT::Hist
+    ROOT::Graf
+    ROOT::Gpad)
+
+install(TARGETS channel_multiplicity RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
+
 add_executable(rate_summary rate_summary.cc)
 target_compile_features(rate_summary PRIVATE cxx_std_17)
 target_include_directories(rate_summary PRIVATE ${CMAKE_SOURCE_DIR}/scripts/include)
@@ -52,3 +90,21 @@ target_link_libraries(
     ROOT::RIO)
 
 install(TARGETS rate_summary RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
+
+add_executable(energy_spectrum energy_spectrum.cc)
+target_compile_features(energy_spectrum PRIVATE cxx_std_17)
+target_include_directories(energy_spectrum PRIVATE ${CMAKE_SOURCE_DIR}/scripts/include)
+target_sources(energy_spectrum PRIVATE ${CMAKE_SOURCE_DIR}/scripts/src/utils.cc ${CMAKE_SOURCE_DIR}/scripts/src/decode_cell_id.cc)
+target_link_libraries(
+  energy_spectrum
+  PRIVATE
+    podio::podio
+    podio::podioRootIO
+    EDM4HEP::edm4hep
+    ROOT::Core
+    ROOT::RIO
+    ROOT::Hist
+    ROOT::Graf
+    ROOT::Gpad)
+
+install(TARGETS energy_spectrum RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
