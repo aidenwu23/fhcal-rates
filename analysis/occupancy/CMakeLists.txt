@@ -41,11 +41,13 @@ install(TARGETS occupancy RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
 
 add_executable(longitudinal_occupancy longitudinal_occupancy.cc)
 target_compile_features(longitudinal_occupancy PRIVATE cxx_std_17)
-target_include_directories(longitudinal_occupancy PRIVATE ${CMAKE_SOURCE_DIR}/scripts/include)
+target_include_directories(longitudinal_occupancy PRIVATE ${CMAKE_SOURCE_DIR}/scripts/include ${CMAKE_CURRENT_SOURCE_DIR}/include)
 target_sources(longitudinal_occupancy PRIVATE
   ${CMAKE_SOURCE_DIR}/scripts/src/utils.cc
   ${CMAKE_SOURCE_DIR}/scripts/src/decode_cell_id.cc
-  ${CMAKE_SOURCE_DIR}/scripts/src/classify_hit.cc)
+  ${CMAKE_SOURCE_DIR}/scripts/src/classify_hit.cc
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/reco_longitudinal.cc
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/truth_longitudinal.cc)
 target_link_libraries(
   longitudinal_occupancy
   PRIVATE
