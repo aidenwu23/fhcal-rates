@@ -29,7 +29,7 @@ namespace fs = std::filesystem;
 
 namespace {
 
-// Constants
+// Constant(s)
 constexpr double kDefaultThresholdGeV = 0.001;
 
 struct Args {

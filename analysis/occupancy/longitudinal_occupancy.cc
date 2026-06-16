@@ -14,7 +14,8 @@
 #include <podio/Frame.h>
 #include <podio/ROOTReader.h>
 
-#include "longitudinal.h"
+#include "reco_longitudinal.h"
+#include "truth_longitudinal.h"
 #include "utils.h"
 
 #include <algorithm>
@@ -35,6 +36,7 @@ namespace lo = br::occupancy::longitudinal;
 
 namespace {
 
+// Constant(s)
 constexpr double kDefaultThresholdGeV = 0.001;
 
 struct Args {
@@ -222,13 +224,15 @@ void write_group_directory(TDirectory* parent,
   h_avg_y->Write();
   for (int layer = 0; layer < lo::kNLayers; ++layer) {
     layers[layer].h_hits_evt->Write();
-    draw_and_write(parent, layers[layer].h_hits_evt, ("c_hits_evt_layer" + std::to_string(layer)).c_str(), false, true);
   }
 
   draw_and_write(parent, h_avg, "c_avg", true, false);
   draw_and_write(parent, h_max, "c_max", true, false);
   draw_and_write(parent, h_rate, "c_rate", true, false);
   draw_and_write(parent, h_avg_y, "c_avg_y", false, false);
+  for (int layer = 0; layer < lo::kNLayers; ++layer) {
+    draw_and_write(parent, layers[layer].h_hits_evt, ("c_hits_evt_layer" + std::to_string(layer)).c_str(), false, true);
+  }
 }
 
 void write_reco(TFile& output,

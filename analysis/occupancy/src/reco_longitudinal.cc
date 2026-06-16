@@ -1,6 +1,4 @@
-#include "longitudinal.h"
-
-#include <TH1D.h>
+#include "reco_longitudinal.h"
 
 #include <edm4eic/CalorimeterHitCollection.h>
 
@@ -8,7 +6,6 @@
 
 #include <algorithm>
 #include <cstdint>
-#include <string>
 #include <unordered_map>
 #include <vector>
 
@@ -18,20 +15,6 @@ namespace {
 constexpr const char* kRecoHitCollection = "LFHCALRecHits";
 
 }  // namespace
-
-bool in_x_slice(const br::LFHCALCellPosition& position) {
-  return position.x_mm >= kXMinMM && position.x_mm < kXMaxMM;
-}
-
-void init_layers(std::vector<LayerAccum>& layers) {
-  layers.assign(kNLayers, {});
-  for (int layer = 0; layer < kNLayers; ++layer) {
-    layers[layer].h_hits_evt = new TH1D(
-        ("h_hits_evt_layer" + std::to_string(layer)).c_str(),
-        ("LFHCAL layer " + std::to_string(layer) + ";hits/event;Events").c_str(),
-        200, 0, 200);
-  }
-}
 
 void init_reco_layers(std::vector<LayerAccum>& layers) {
   init_layers(layers);

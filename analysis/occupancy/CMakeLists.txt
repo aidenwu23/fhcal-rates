@@ -46,6 +46,7 @@ target_sources(longitudinal_occupancy PRIVATE
   ${CMAKE_SOURCE_DIR}/scripts/src/utils.cc
   ${CMAKE_SOURCE_DIR}/scripts/src/decode_cell_id.cc
   ${CMAKE_SOURCE_DIR}/scripts/src/classify_hit.cc
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/shared_longitudinal.cc
   ${CMAKE_CURRENT_SOURCE_DIR}/src/reco_longitudinal.cc
   ${CMAKE_CURRENT_SOURCE_DIR}/src/truth_longitudinal.cc)
 target_link_libraries(
