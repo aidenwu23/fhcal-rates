@@ -11,6 +11,7 @@ target_sources(occupancy PRIVATE
   ${CMAKE_SOURCE_DIR}/scripts/src/decode_cell_id.cc
   ${CMAKE_SOURCE_DIR}/scripts/src/smooth_hists.cc
   ${CMAKE_SOURCE_DIR}/scripts/src/classify_hit.cc
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/shared.cc
   ${CMAKE_CURRENT_SOURCE_DIR}/src/reco.cc
   ${CMAKE_CURRENT_SOURCE_DIR}/src/truth.cc)
 set(_edm4eic_targets)
@@ -41,7 +42,10 @@ install(TARGETS occupancy RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
 add_executable(longitudinal_occupancy longitudinal_occupancy.cc)
 target_compile_features(longitudinal_occupancy PRIVATE cxx_std_17)
 target_include_directories(longitudinal_occupancy PRIVATE ${CMAKE_SOURCE_DIR}/scripts/include)
-target_sources(longitudinal_occupancy PRIVATE ${CMAKE_SOURCE_DIR}/scripts/src/utils.cc ${CMAKE_SOURCE_DIR}/scripts/src/decode_cell_id.cc ${CMAKE_SOURCE_DIR}/scripts/src/classify_hit.cc)
+target_sources(longitudinal_occupancy PRIVATE
+  ${CMAKE_SOURCE_DIR}/scripts/src/utils.cc
+  ${CMAKE_SOURCE_DIR}/scripts/src/decode_cell_id.cc
+  ${CMAKE_SOURCE_DIR}/scripts/src/classify_hit.cc)
 target_link_libraries(
   longitudinal_occupancy
   PRIVATE

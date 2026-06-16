@@ -5,7 +5,6 @@
 #include "utils.h"
 
 #include <algorithm>
-#include <cmath>
 #include <cstdint>
 #include <unordered_map>
 #include <vector>
@@ -16,26 +15,8 @@ namespace {
 constexpr const char* kRecoHitCollection = "LFHCALRecHits";
 }  // namespace
 
-void ChannelStats::set_position(double x, double y) {
-  x_mm = x;
-  y_mm = y;
-  has_position = true;
-}
-double ChannelStats::x() const { return has_position ? x_mm : 0.0; }
-double ChannelStats::y() const { return has_position ? y_mm : 0.0; }
-double ChannelStats::r() const { return std::hypot(x(), y()); }
-
 void init_reco_layers(std::vector<LayerAccum>& layers) {
-  layers.assign(kNLayers + 1, {});
-
-  // Initialize layer accumulators and histograms.
-  for (int layer = 0; layer <= kNLayers; ++layer) {
-    layers[layer].h_hits_evt = new TH1D(
-        "h_hits_evt",
-        (layer == kAllLayersIndex ? std::string("LFHCAL summed layers;hits/event;Events")
-          : std::string("LFHCAL layer ") + std::to_string(layer) + ";hits/event;Events").c_str(),
-        200, 0, 200);
-  }
+  init_layer_accumulations(layers);
 }
 
 bool process_reco_event(const podio::Frame& frame,
@@ -71,7 +52,8 @@ bool process_reco_event(const podio::Frame& frame,
     // 2. There is a preexisting channel with this ID --> use that one.
     auto& stats = layers[layer].channels[channel_id];
     stats.raw_cell_ids.insert(cell_id);
-    stats.set_position(cell_position.x_mm, cell_position.y_mm);
+    stats.x_mm = cell_position.x_mm;
+    stats.y_mm = cell_position.y_mm;
 
     // Count one more hit in this channel for the current event.
     ++event_counts[layer][channel_id];
@@ -80,7 +62,8 @@ bool process_reco_event(const podio::Frame& frame,
     // Also update the "all layers together" bucket.
     auto& merged_stats = layers[kAllLayersIndex].channels[channel_id];
     merged_stats.raw_cell_ids.insert(cell_id);
-    merged_stats.set_position(cell_position.x_mm, cell_position.y_mm);
+    merged_stats.x_mm = cell_position.x_mm;
+    merged_stats.y_mm = cell_position.y_mm;
     ++event_counts[kAllLayersIndex][channel_id];
     ++layer_totals[kAllLayersIndex];
   }

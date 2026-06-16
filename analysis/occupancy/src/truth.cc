@@ -4,6 +4,7 @@
 #include <edm4hep/SimCalorimeterHitCollection.h>
 
 #include "classify_hit.h"
+#include "reco.h"
 #include "utils.h"
 
 #include <algorithm>
@@ -93,9 +94,11 @@ bool process_truth_event(const podio::Frame& frame,
       auto fill_origin_bucket = [&](TruthOccupancyGroup& origin_group,
                                     int group_index,
                                     int layer_index) {
-        auto& stats = origin_group.layers[layer_index].channels[channel_id]; // Create stats for this layer's channel.
+        // Create/reference stats for this layer's channel.
+        auto& stats = origin_group.layers[layer_index].channels[channel_id];
         stats.raw_cell_ids.insert(cell_id);
-        stats.set_position(cell_position.x_mm, cell_position.y_mm);
+        stats.x_mm = cell_position.x_mm;
+        stats.y_mm = cell_position.y_mm;
 
         ++event_counts[group_index][layer_index][channel_id]; // Increment hit count for this origin.
         ++layer_totals[group_index][layer_index];
@@ -111,7 +114,8 @@ bool process_truth_event(const podio::Frame& frame,
                                      int layer_index) {
       auto& stats = all_group.layers[layer_index].channels[channel_id];
       stats.raw_cell_ids.insert(cell_id);
-      stats.set_position(cell_position.x_mm, cell_position.y_mm);
+      stats.x_mm = cell_position.x_mm;
+      stats.y_mm = cell_position.y_mm;
 
       ++event_counts[all_group_index][layer_index][channel_id];
       ++layer_totals[all_group_index][layer_index];

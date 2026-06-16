@@ -4,7 +4,6 @@
 
 */
 
-#include <TCanvas.h>
 #include <TFile.h>
 #include <TH1.h>
 #include <TH1D.h>
@@ -13,17 +12,15 @@
 #include <podio/Frame.h>
 #include <podio/ROOTReader.h>
 
-#include "decode_cell_id.h"
+#include "shared.h"
 #include "reco.h"
 #include "truth.h"
 #include "utils.h"
 
 #include <algorithm>
-#include <cmath>
 #include <filesystem>
 #include <iostream>
 #include <optional>
-#include <set>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -34,8 +31,6 @@ namespace {
 
 // Constants
 constexpr double kDefaultThresholdGeV = 0.001;
-constexpr double kEventWindowSec = 2e-6;                // 2 microseconds.
-constexpr double kDisplayPaddingMM = 25.0;              // Half-cell padding around outermost decoded centers.
 
 struct Args {
   std::string input_dir;
@@ -75,64 +70,12 @@ void usage(const char* argv0) {
   std::cerr << "Usage: " << argv0 << " -i INPUT_DIR -o OUTPUT.root [-t THRESHOLD_GEV]\n";
 }
 
-// Draw a (styled) histogram on a canvas and write it to the given directory.
-void draw_and_write(TDirectory* canvas_dir, TH1* hist, const char* canvas_name, bool logz = false, bool logy = false) {
-  canvas_dir->cd();
-  TCanvas canvas(canvas_name, hist->GetTitle(), 1000, 800);
-  if (logz) canvas.SetLogz();
-  if (logy) canvas.SetLogy();
-  hist->SetStats(false);
-  const bool is2d = hist->InheritsFrom(TH2::Class());
-  hist->Draw(is2d ? "colz" : "hist");
-  canvas.Write();
-}
-
-struct AxisEdges2D {
-  std::vector<double> x_edges;
-  std::vector<double> y_edges;
-};
-
-// Make axis edges based on a set of cell x or y coordinates.
-std::vector<double> make_axis_edges(const std::set<double>& coords) {
-  if (coords.empty()) return {-kDisplayPaddingMM, kDisplayPaddingMM};
-
-  std::vector<double> values(coords.begin(), coords.end());
-  std::vector<double> edges;
-  edges.reserve(values.size() + 1);
-
-  if (values.size() == 1) {
-    edges.push_back(values.front() - kDisplayPaddingMM);
-    edges.push_back(values.front() + kDisplayPaddingMM);
-    return edges;
-  }
-
-  // Edges are halfway between neighborhing cells.
-  edges.push_back(values.front() - 0.5 * (values[1] - values[0]));
-  for (std::size_t i = 0; i + 1 < values.size(); ++i) {
-    edges.push_back(0.5 * (values[i] + values[i + 1]));
-  }
-
-  edges.push_back(values.back() + 0.5 * (values.back() - values[values.size() - 2]));
-  return edges;
-}
-
-AxisEdges2D make_layer_axis_edges(const br::occupancy::LayerAccum& layer_accum) {
-  std::set<double> x_coords;
-  std::set<double> y_coords;
-  for (const auto& [channel_id, stats] : layer_accum.channels) {
-    (void)channel_id;
-    x_coords.insert(stats.x());
-    y_coords.insert(stats.y());
-  }
-  return AxisEdges2D{make_axis_edges(x_coords), make_axis_edges(y_coords)};
-}
-
 // Write all plots for one readout z layer.
 void write_layer_directory(TDirectory* parent,
                            const br::occupancy::LayerAccum& layer_accum,
                            int layer,
                            std::uint64_t n_events,
-                           const std::optional<AxisEdges2D>& reference_edges = std::nullopt) {
+                           const std::optional<br::occupancy::AxisEdges2D>& reference_edges = std::nullopt) {
   const std::string dir_name = layer == br::occupancy::kAllLayersIndex ? "sum_layers" : std::string("layer") + std::to_string(layer);
   auto* dir = parent->mkdir(dir_name.c_str());
   dir->cd();
@@ -149,7 +92,8 @@ void write_layer_directory(TDirectory* parent,
     (void)channel_id;
     rmax = std::max(rmax, stats.r());
   }
-  const AxisEdges2D axis_edges = reference_edges.has_value() ? *reference_edges : make_layer_axis_edges(layer_accum);
+  const br::occupancy::AxisEdges2D axis_edges =
+      reference_edges.has_value() ? *reference_edges : br::occupancy::make_layer_axis_edges(layer_accum);
   const auto& x_edges = axis_edges.x_edges;
   const auto& y_edges = axis_edges.y_edges;
 
@@ -186,10 +130,10 @@ void write_layer_directory(TDirectory* parent,
   for (const auto& [channel_id, stats] : layer_accum.channels) {
     (void)channel_id;
     const double avg = static_cast<double>(stats.total_hits) / static_cast<double>(n_events);
-    const double rate = static_cast<double>(stats.total_hits) / (static_cast<double>(n_events) * kEventWindowSec);
-    h_avg->Fill(stats.x(), stats.y(), avg);
-    h_max->Fill(stats.x(), stats.y(), stats.max_hits_event);
-    h_rate->Fill(stats.x(), stats.y(), rate);
+    const double rate = static_cast<double>(stats.total_hits) / (static_cast<double>(n_events) * br::occupancy::kEventWindowSec);
+    h_avg->Fill(stats.x_mm, stats.y_mm, avg);
+    h_max->Fill(stats.x_mm, stats.y_mm, stats.max_hits_event);
+    h_rate->Fill(stats.x_mm, stats.y_mm, rate);
     h_avg_r->Fill(stats.r(), avg);
     h_nchan_r->Fill(stats.r(), 1.0);
   }
@@ -208,11 +152,11 @@ void write_layer_directory(TDirectory* parent,
   h_nchan_r->Write();
   layer_accum.h_hits_evt->Write();
 
-  draw_and_write(dir, h_avg, "c_avg", true, false);
-  draw_and_write(dir, h_max, "c_max", true, false);
-  draw_and_write(dir, h_rate, "c_rate", true, false);
-  draw_and_write(dir, h_avg_r, "c_avg_r", false, false);
-  draw_and_write(dir, layer_accum.h_hits_evt, "c_hits_evt", false, true);
+  br::occupancy::draw_and_write(dir, h_avg, "c_avg", true, false);
+  br::occupancy::draw_and_write(dir, h_max, "c_max", true, false);
+  br::occupancy::draw_and_write(dir, h_rate, "c_rate", true, false);
+  br::occupancy::draw_and_write(dir, h_avg_r, "c_avg_r", false, false);
+  br::occupancy::draw_and_write(dir, layer_accum.h_hits_evt, "c_hits_evt", false, true);
 }
 
 // Reco doesn't have contributions, so just write one for every layer.
@@ -231,7 +175,7 @@ void write_truth(TFile& output,
                  std::uint64_t n_events) {
 
   // Use DIS for bin edges since DIS typically has lots of stats.
-  std::vector<std::optional<AxisEdges2D>> dis_reference_edges(br::occupancy::kNLayers + 1);
+  std::vector<std::optional<br::occupancy::AxisEdges2D>> dis_reference_edges(br::occupancy::kNLayers + 1);
   const auto dis_it = std::find_if(
       truth_groups.begin(),
       truth_groups.end(),
@@ -239,7 +183,7 @@ void write_truth(TFile& output,
   if (dis_it != truth_groups.end()) {
     for (int layer = 0; layer <= br::occupancy::kNLayers; ++layer) {
       if (!dis_it->layers[layer].channels.empty()) {
-        dis_reference_edges[layer] = make_layer_axis_edges(dis_it->layers[layer]);
+        dis_reference_edges[layer] = br::occupancy::make_layer_axis_edges(dis_it->layers[layer]);
       }
     }
   }
