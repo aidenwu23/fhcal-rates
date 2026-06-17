@@ -177,7 +177,7 @@ int main(int argc, char* argv[]) {
         channel_energy_by_layer[channel.rlayerz][channel] += hit.getEnergy();
       }
 
-      // Count channels that pass each threshold for this event.
+      // Increment channels that pass each threshold for this event.
       for (int layer = 0; layer < kNReadoutLayers; ++layer) {
         for (const auto& [channel, energy] : channel_energy_by_layer[layer]) {
           for (std::size_t threshold_index = 0; threshold_index < kThresholdsGeV.size(); ++threshold_index) {
@@ -194,6 +194,7 @@ int main(int argc, char* argv[]) {
     return 1;
   }
 
+  // For each channel, calculate: total passes / total time
   const double total_time_sec = static_cast<double>(n_events) * kEventWindowSec;
   for (int layer = 0; layer < kNReadoutLayers; ++layer) {
     for (std::size_t threshold_index = 0; threshold_index < kThresholdsGeV.size(); ++threshold_index) {
