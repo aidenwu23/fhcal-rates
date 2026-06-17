@@ -31,7 +31,7 @@ namespace fs = std::filesystem;
 namespace {
 
 constexpr const char* kHitCollection = "LFHCALHits";
-constexpr double kDefaultThresholdGeV = 0.0;
+constexpr double kDefaultThresholdGeV = 0.001;
 constexpr double kEventWindowSec = 2e-6;
 
 struct Args {
@@ -58,6 +58,11 @@ const char* kColumnNames[kNColumns] = {
     "electron_beam_background",
     "proton_beam_background",
     "all_sources",
+};
+
+struct EventChannel {
+  double energy_gev = 0.0;
+  std::array<bool, 3> source_present = {false, false, false};
 };
 
 // ----------------------------- handle CLI inputs -----------------------------
@@ -189,15 +194,15 @@ int main(int argc, char* argv[]) {
 
       const auto& hits = frame.get<edm4hep::SimCalorimeterHitCollection>(kHitCollection);
 
+      // Per-event channel signals before applying the summed channel threshold.
+      std::unordered_map<br::LFHCALChannelID, EventChannel, br::LFHCALChannelIDHash> event_channels;
+
       // Loop hits.
       for (const auto& hit : hits) {
-
-        // Supress low-energy hits.
-        if (hit.getEnergy() <= threshold_geV) continue;
-
         const auto cell_id = static_cast<std::uint64_t>(hit.getCellID());
         const auto channel_id = decoder.channel(cell_id);
-        std::array<bool, 3> source_present = {false, false, false};
+        auto& event_channel = event_channels[channel_id];
+        event_channel.energy_gev += hit.getEnergy();
 
         for (const auto& contribution : hit.getContributions()) {
           if (contribution.getEnergy() <= 0.0) continue;
@@ -205,16 +210,20 @@ int main(int argc, char* argv[]) {
           const auto source = br::classify_background_class(
               contribution.getParticle().getGeneratorStatus());
           if (source == br::BackgroundClass::DIS) {
-            source_present[static_cast<int>(Column::DIS)] = true;
+            event_channel.source_present[static_cast<int>(Column::DIS)] = true;
           } else if (source == br::BackgroundClass::ElectronBeamBackground) {
-            source_present[static_cast<int>(Column::ElectronBeamBackground)] = true;
+            event_channel.source_present[static_cast<int>(Column::ElectronBeamBackground)] = true;
           } else if (source == br::BackgroundClass::ProtonBeamBackground) {
-            source_present[static_cast<int>(Column::ProtonBeamBackground)] = true;
+            event_channel.source_present[static_cast<int>(Column::ProtonBeamBackground)] = true;
           }
         }
+      }
 
+      for (const auto& [channel_id, event_channel] : event_channels) {
+        // Apply summed channel threshold.
+        if (event_channel.energy_gev <= threshold_geV) continue;
         for (int source_index = 0; source_index < 3; ++source_index) {
-          if (!source_present[source_index]) continue;
+          if (!event_channel.source_present[source_index]) continue;
           ++columns[source_index].channel_hits[channel_id];
           ++columns[source_index].total_hits;
         }

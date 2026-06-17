@@ -16,4 +16,6 @@ add_subdirectory(analysis/hit-origins)
 
 add_subdirectory(analysis/occupancy)
 
+add_subdirectory(analysis/rate_correlations)
+
 add_subdirectory(analysis/performance)

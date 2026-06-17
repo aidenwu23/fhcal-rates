@@ -30,7 +30,7 @@ namespace fs = std::filesystem;
 namespace {
 
 constexpr const char* kTruthHitCollection = "LFHCALHits";
-constexpr double kDefaultThresholdGeV = 0.0;
+constexpr double kDefaultThresholdGeV = 0.001;
 constexpr int kNLayers = 7;
 
 struct Args {
@@ -40,6 +40,11 @@ struct Args {
 };
 
 using EventCounts = std::unordered_map<br::LFHCALChannelID, int, br::LFHCALChannelIDHash>;
+
+struct EventChannel {
+  double energy_gev = 0.0;
+  int hit_count = 0;
+};
 
 void usage(const char* argv0) {
   std::cerr << "Usage: " << argv0 << " -i INPUT_DIR -o OUTPUT.root [-t THRESHOLD_GEV]\n";
@@ -106,17 +111,27 @@ bool process_truth_event(const podio::Frame& frame,
   if (!br::has_collection(frame, kTruthHitCollection)) return false;
 
   std::vector<EventCounts> event_counts(kNLayers);
+  // event_channels[layer][channel]: For this event, summed channel signal before applying threshold.
+  std::vector<std::unordered_map<br::LFHCALChannelID, EventChannel, br::LFHCALChannelIDHash>> event_channels(kNLayers);
 
   // Use LFHCALHits.
   const auto& hits = frame.get<edm4hep::SimCalorimeterHitCollection>(kTruthHitCollection);
   for (const auto& hit : hits) {
-    if (hit.getEnergy() <= threshold_geV) continue;
-
     const auto channel_id = decoder.channel(static_cast<std::uint64_t>(hit.getCellID()));
     const int layer = channel_id.rlayerz;
     if (layer < 0 || layer >= kNLayers) continue;
 
-    ++event_counts[layer][channel_id]; // Increment.
+    auto& event_channel = event_channels[layer][channel_id];
+    event_channel.energy_gev += hit.getEnergy();
+    ++event_channel.hit_count;
+  }
+
+  for (int layer = 0; layer < kNLayers; ++layer) {
+    for (const auto& [channel_id, event_channel] : event_channels[layer]) {
+      // Apply summed channel threshold.
+      if (event_channel.energy_gev <= threshold_geV) continue;
+      event_counts[layer][channel_id] = event_channel.hit_count;
+    }
   }
 
   for (int layer = 0; layer < kNLayers; ++layer) {

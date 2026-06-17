@@ -35,6 +35,12 @@ constexpr const char* kTruthLabels[] = {
 constexpr int kNTruthGroups = sizeof(kTruthLabels) / sizeof(kTruthLabels[0]);
 constexpr int kAllTruthIndex = kNTruthGroups - 1;
 
+struct EventChannel {
+  double energy_gev = 0.0;
+  std::array<double, kAllTruthIndex> energy_by_origin{};
+  double y_mm = 0.0;
+};
+
 }  // namespace
 
 void init_truth_groups(std::vector<TruthGroup>& groups) {
@@ -58,14 +64,13 @@ bool process_truth_event(const podio::Frame& frame,
   // Per-event channel counters for every truth group and layer.
   std::vector<std::vector<std::unordered_map<br::LFHCALChannelID, int, br::LFHCALChannelIDHash>>> event_counts(
       groups.size(), std::vector<std::unordered_map<br::LFHCALChannelID, int, br::LFHCALChannelIDHash>>(kNLayers));
+  // event_channels[layer][channel]: For this event, summed channel signal before applying threshold.
+  std::vector<std::unordered_map<br::LFHCALChannelID, EventChannel, br::LFHCALChannelIDHash>> event_channels(kNLayers);
   std::vector<std::vector<int>> layer_totals(groups.size(), std::vector<int>(kNLayers, 0));
 
   // Grab and loop over hits.
   const auto& hits = frame.get<edm4hep::SimCalorimeterHitCollection>(kTruthHitCollection);
   for (const auto& hit : hits) {
-    // Apply threshold.
-    if (hit.getEnergy() <= threshold_geV) continue;
-
     // Decode cell ID and apply the x slice.
     const auto cell_id = static_cast<std::uint64_t>(hit.getCellID());
     const auto position = decoder.position(cell_id);
@@ -76,7 +81,9 @@ bool process_truth_event(const podio::Frame& frame,
     const int layer = channel_id.rlayerz;
     if (layer < 0 || layer >= kNLayers) continue;
 
-    std::array<double, kAllTruthIndex> energy_by_origin{};
+    auto& event_channel = event_channels[layer][channel_id];
+    event_channel.energy_gev += hit.getEnergy();
+    event_channel.y_mm = position.y_mm;
 
     // Per hit, sum all contributions that fall into the same broad origin family.
     for (const auto& contribution : hit.getContributions()) {
@@ -85,26 +92,33 @@ bool process_truth_event(const podio::Frame& frame,
 
       const int origin_index = br::origin_index(contribution.getParticle().getGeneratorStatus());
       if (origin_index < 0 || origin_index >= kAllTruthIndex) continue;
-      energy_by_origin[origin_index] += energy;
+      event_channel.energy_by_origin[origin_index] += energy;
     }
+  }
 
-    // Loop through all seen origins for this hit.
-    for (int origin_index = 0; origin_index < kAllTruthIndex; ++origin_index) {
-      // Skip if this origin contributes no energy.
-      if (energy_by_origin[origin_index] <= 0.0) continue;
+  for (int layer = 0; layer < kNLayers; ++layer) {
+    for (const auto& [channel_id, event_channel] : event_channels[layer]) {
+      // Apply summed channel threshold.
+      if (event_channel.energy_gev <= threshold_geV) continue;
 
-      // Otherwise fill the corresponding longitudinal bucket for this origin.
-      auto& stats = groups[origin_index].layers[layer].channels[channel_id];
-      stats.y_mm = position.y_mm;
-      ++event_counts[origin_index][layer][channel_id];
-      ++layer_totals[origin_index][layer];
+      // Loop through all seen origins for this channel.
+      for (int origin_index = 0; origin_index < kAllTruthIndex; ++origin_index) {
+        // Skip if this origin contributes no energy.
+        if (event_channel.energy_by_origin[origin_index] <= 0.0) continue;
+
+        // Otherwise fill the corresponding longitudinal bucket for this origin.
+        auto& stats = groups[origin_index].layers[layer].channels[channel_id];
+        stats.y_mm = event_channel.y_mm;
+        ++event_counts[origin_index][layer][channel_id];
+        ++layer_totals[origin_index][layer];
+      }
+
+      // Also update the inclusive truth bucket once per channel.
+      auto& all_stats = groups[kAllTruthIndex].layers[layer].channels[channel_id];
+      all_stats.y_mm = event_channel.y_mm;
+      ++event_counts[kAllTruthIndex][layer][channel_id];
+      ++layer_totals[kAllTruthIndex][layer];
     }
-
-    // Also update the inclusive truth bucket once per hit.
-    auto& all_stats = groups[kAllTruthIndex].layers[layer].channels[channel_id];
-    all_stats.y_mm = position.y_mm;
-    ++event_counts[kAllTruthIndex][layer][channel_id];
-    ++layer_totals[kAllTruthIndex][layer];
   }
 
   // For each generatorStatus family...

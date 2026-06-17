@@ -14,6 +14,11 @@ namespace {
 
 constexpr const char* kRecoHitCollection = "LFHCALRecHits";
 
+struct EventChannel {
+  double energy_gev = 0.0;
+  double y_mm = 0.0;
+};
+
 }  // namespace
 
 void init_reco_layers(std::vector<LayerAccum>& layers) {
@@ -28,14 +33,13 @@ bool process_reco_event(const podio::Frame& frame,
 
   // Per-event channel counters.
   std::vector<std::unordered_map<br::LFHCALChannelID, int, br::LFHCALChannelIDHash>> event_counts(kNLayers);
+  // event_channels[layer][channel]: For this event, summed channel signal before applying threshold.
+  std::vector<std::unordered_map<br::LFHCALChannelID, EventChannel, br::LFHCALChannelIDHash>> event_channels(kNLayers);
   std::vector<int> layer_totals(kNLayers, 0);
 
   // Grab and loop over hits.
   const auto& hits = frame.get<edm4eic::CalorimeterHitCollection>(kRecoHitCollection);
   for (const auto& hit : hits) {
-    // Apply threshold.
-    if (hit.getEnergy() <= threshold_geV) continue;
-
     // Get layer.
     const int layer = hit.getLayer();
     if (layer < 0 || layer >= kNLayers) continue;
@@ -47,12 +51,23 @@ bool process_reco_event(const podio::Frame& frame,
 
     // All channels with the same y value are stacked on top of each other.
     const auto channel_id = decoder.channel(cell_id);
-    auto& stats = layers[layer].channels[channel_id];
-    stats.y_mm = position.y_mm;
+    auto& event_channel = event_channels[layer][channel_id];
+    event_channel.energy_gev += hit.getEnergy();
+    event_channel.y_mm = position.y_mm;
+  }
 
-    // Count one more hit in this channel for the current event.
-    ++event_counts[layer][channel_id];
-    ++layer_totals[layer];
+  for (int layer = 0; layer < kNLayers; ++layer) {
+    for (const auto& [channel_id, event_channel] : event_channels[layer]) {
+      // Apply summed channel threshold.
+      if (event_channel.energy_gev <= threshold_geV) continue;
+
+      auto& stats = layers[layer].channels[channel_id];
+      stats.y_mm = event_channel.y_mm;
+
+      // Count this channel once for the current event after applying the summed channel threshold.
+      ++event_counts[layer][channel_id];
+      ++layer_totals[layer];
+    }
   }
 
   // End of this event:

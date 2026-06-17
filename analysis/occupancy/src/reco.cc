@@ -6,6 +6,7 @@
 
 #include <algorithm>
 #include <cstdint>
+#include <unordered_set>
 #include <unordered_map>
 #include <vector>
 
@@ -13,6 +14,13 @@ namespace br::occupancy {
 namespace {
 
 constexpr const char* kRecoHitCollection = "LFHCALRecHits";
+
+struct EventChannel {
+  double energy_gev = 0.0;
+  std::unordered_set<std::uint64_t> raw_cell_ids;
+  double x_mm = 0.0;
+  double y_mm = 0.0;
+};
 }  // namespace
 
 void init_reco_layers(std::vector<LayerAccum>& layers) {
@@ -27,16 +35,15 @@ bool process_reco_event(const podio::Frame& frame,
   if (!br::has_collection(frame, kRecoHitCollection)) return false;
 
   // Per-event channel counters.
-  // event_counts[layer][channel]: For this event, the number of hits that landed in [layer]'s [channel].
+  // event_counts[layer][channel]: For this event, whether [layer]'s [channel] passed the summed channel threshold.
   std::vector<std::unordered_map<br::LFHCALChannelID, int, br::LFHCALChannelIDHash>> event_counts(kNLayers + 1);
+  // event_channels[layer][channel]: For this event, summed channel signal before applying threshold.
+  std::vector<std::unordered_map<br::LFHCALChannelID, EventChannel, br::LFHCALChannelIDHash>> event_channels(kNLayers);
   std::vector<int> layer_totals(kNLayers + 1, 0);
 
   // Grab and loop over hits.
   const auto& hits = frame.get<edm4eic::CalorimeterHitCollection>(kRecoHitCollection);
   for (const auto& hit : hits) {
-
-    // Apply hit threshold.
-    if (hit.getEnergy() <= threshold_geV) continue;
 
     // Get layer and cellID.
     const int layer = hit.getLayer();
@@ -48,24 +55,36 @@ bool process_reco_event(const podio::Frame& frame,
     const auto cell_position = decoder.position(cell_id);
 
     // Does one of two things:
-    // 1. There are no preeixsting channels with this ID --> create new channel.
-    // 2. There is a preexisting channel with this ID --> use that one.
-    auto& stats = layers[layer].channels[channel_id];
-    stats.raw_cell_ids.insert(cell_id);
-    stats.x_mm = cell_position.x_mm;
-    stats.y_mm = cell_position.y_mm;
+    // 1. There are no preexisting event channels with this ID --> create new event channel.
+    // 2. There is a preexisting event channel with this ID --> accumulate into that one.
+    auto& event_channel = event_channels[layer][channel_id];
+    event_channel.energy_gev += hit.getEnergy();
+    event_channel.raw_cell_ids.insert(cell_id);
+    event_channel.x_mm = cell_position.x_mm;
+    event_channel.y_mm = cell_position.y_mm;
+  }
 
-    // Count one more hit in this channel for the current event.
-    ++event_counts[layer][channel_id];
-    ++layer_totals[layer];
+  for (int layer = 0; layer < kNLayers; ++layer) {
+    for (const auto& [channel_id, event_channel] : event_channels[layer]) {
+      // Apply summed channel threshold.
+      if (event_channel.energy_gev <= threshold_geV) continue;
 
-    // Also update the "all layers together" bucket.
-    auto& merged_stats = layers[kAllLayersIndex].channels[channel_id];
-    merged_stats.raw_cell_ids.insert(cell_id);
-    merged_stats.x_mm = cell_position.x_mm;
-    merged_stats.y_mm = cell_position.y_mm;
-    ++event_counts[kAllLayersIndex][channel_id];
-    ++layer_totals[kAllLayersIndex];
+      auto& stats = layers[layer].channels[channel_id];
+      stats.raw_cell_ids.insert(event_channel.raw_cell_ids.begin(), event_channel.raw_cell_ids.end());
+      stats.x_mm = event_channel.x_mm;
+      stats.y_mm = event_channel.y_mm;
+
+      auto& merged_stats = layers[kAllLayersIndex].channels[channel_id];
+      merged_stats.raw_cell_ids.insert(event_channel.raw_cell_ids.begin(), event_channel.raw_cell_ids.end());
+      merged_stats.x_mm = event_channel.x_mm;
+      merged_stats.y_mm = event_channel.y_mm;
+
+      // Count this channel once for the current event after applying the summed channel threshold.
+      ++event_counts[layer][channel_id];
+      ++layer_totals[layer];
+      ++event_counts[kAllLayersIndex][channel_id];
+      ++layer_totals[kAllLayersIndex];
+    }
   }
 
   // End of this event:
