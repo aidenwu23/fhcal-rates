@@ -84,7 +84,7 @@ bool process_truth_event(const podio::Frame& frame,
     // 1. There are no preexisting event channels with this ID --> create new event channel.
     // 2. There is a preexisting event channel with this ID --> accumulate into that one.
     auto& event_channel = event_channels[layer][channel_id];
-    event_channel.energy_gev += hit.getEnergy();
+    event_channel.energy_gev += hit.getEnergy(); // Sum energy here to apply a threshold later.
     event_channel.raw_cell_ids.insert(cell_id);
     event_channel.x_mm = cell_position.x_mm;
     event_channel.y_mm = cell_position.y_mm;

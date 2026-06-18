@@ -1,6 +1,6 @@
 /*
 
-./build/threshold_rate_overlays -i data/reco_bkg_apr -o plots/rate_correlations/threshold_rate_overlays.root
+./build/rate_scan_r1000 -i data/reco_bkg_apr -o plots/rate_correlations/rate_scan_r1000.root
 
 */
 
@@ -11,6 +11,7 @@
 #include <TH1.h>
 #include <TH1D.h>
 #include <TLegend.h>
+#include <TLine.h>
 
 #include <podio/Frame.h>
 #include <podio/ROOTReader.h>
@@ -20,7 +21,10 @@
 #include "decode_cell_id.h"
 #include "utils.h"
 
+#include <algorithm>
 #include <array>
+#include <cmath>
+#include <cstdio>
 #include <cstdint>
 #include <filesystem>
 #include <iostream>
@@ -37,6 +41,9 @@ namespace {
 constexpr const char* kHitCollection = "LFHCALHits";
 constexpr int kNReadoutLayers = 7;
 constexpr double kEventWindowSec = 2e-6;
+constexpr double kMaxRadiusMm = 1000.0;
+constexpr double kMaxRadiusMm2 = kMaxRadiusMm * kMaxRadiusMm;
+constexpr double kHistMinimum = 0.8;
 
 constexpr std::array<double, 5> kThresholdsGeV = {0.0, 0.001, 0.002, 0.003, 0.004};
 const std::array<int, kThresholdsGeV.size()> kColors = {kBlack, kBlue + 1, kGreen + 2, kOrange + 1, kRed + 1};
@@ -49,6 +56,7 @@ struct Args {
 struct ThresholdProducts {
   TH1D* h_rate = nullptr;
   std::unordered_map<br::LFHCALChannelID, std::uint64_t, br::LFHCALChannelIDHash> channel_passes;
+  double p95_rate_hz = 0.0;
 };
 
 void usage(const char* argv0) {
@@ -86,20 +94,36 @@ std::string threshold_tag(double threshold_gev) {
   return "thr" + std::to_string(static_cast<int>(threshold_gev * 1000.0 + 0.5)) + "MeV";
 }
 
+std::string percentile_label(double threshold_gev, double p95_rate_hz) {
+  char buffer[128];
+  std::snprintf(buffer,
+                sizeof(buffer),
+                "%s (p95 %.3g Hz)",
+                threshold_label(threshold_gev).c_str(),
+                p95_rate_hz);
+  return buffer;
+}
+
 void draw_rate_overlay(TDirectory* dir,
                        const std::array<ThresholdProducts, kThresholdsGeV.size()>& products,
                        int layer) {
   dir->cd();
-  TCanvas canvas(("c_layer" + std::to_string(layer) + "_rate_threshold_overlay").c_str(),
-                 ("Layer " + std::to_string(layer) + " rate threshold overlay").c_str(),
+  TCanvas canvas(("c_layer" + std::to_string(layer) + "_rate_threshold_overlay_r1000").c_str(),
+                 ("Layer " + std::to_string(layer) + " rate threshold overlay, R < 1000 mm").c_str(),
                  1000,
                  800);
   canvas.SetLogx();
   canvas.SetLogy();
 
-  TLegend legend(0.65, 0.65, 0.88, 0.88);
+  TLegend legend(0.52, 0.60, 0.88, 0.88);
   legend.SetBorderSize(0);
   legend.SetFillStyle(0);
+
+  double max_y = 0.0;
+  for (const auto& product : products) {
+    max_y = std::max(max_y, product.h_rate->GetMaximum());
+  }
+  if (max_y <= 0.0) max_y = 1.0;
 
   bool drew = false;
   for (std::size_t threshold_index = 0; threshold_index < kThresholdsGeV.size(); ++threshold_index) {
@@ -107,10 +131,25 @@ void draw_rate_overlay(TDirectory* dir,
     hist->SetStats(false);
     hist->SetLineColor(kColors[threshold_index]);
     hist->SetLineWidth(2);
-    hist->SetTitle(("Layer " + std::to_string(layer) + ";rate [Hz/channel];channels").c_str());
+    hist->SetMinimum(kHistMinimum);
+    hist->SetMaximum(1.25 * max_y);
+    hist->SetTitle(("Layer " + std::to_string(layer) + ", R < 1000 mm;rate [Hz/channel];channels").c_str());
     hist->Draw(drew ? "hist same" : "hist");
     drew = true;
-    legend.AddEntry(hist, threshold_label(kThresholdsGeV[threshold_index]).c_str(), "l");
+    legend.AddEntry(hist,
+                    percentile_label(kThresholdsGeV[threshold_index], products[threshold_index].p95_rate_hz).c_str(),
+                    "l");
+  }
+
+  for (std::size_t threshold_index = 0; threshold_index < kThresholdsGeV.size(); ++threshold_index) {
+    const auto& product = products[threshold_index];
+    if (product.p95_rate_hz <= 0.0) continue;
+
+    auto* line = new TLine(product.p95_rate_hz, kHistMinimum, product.p95_rate_hz, 1.25 * max_y);
+    line->SetLineColor(kColors[threshold_index]);
+    line->SetLineStyle(2);
+    line->SetLineWidth(2);
+    line->Draw();
   }
 
   legend.Draw();
@@ -122,6 +161,7 @@ void draw_rate_overlay(TDirectory* dir,
 int main(int argc, char* argv[]) {
   TH1::AddDirectory(false);
 
+  // Parse args.
   const auto args = parse_args(argc, argv);
   const auto files = br::find_root_files(args.input_dir);
   if (files.empty()) {
@@ -132,15 +172,16 @@ int main(int argc, char* argv[]) {
   fs::path output_path = args.output_file;
   if (output_path.has_parent_path()) fs::create_directories(output_path.parent_path());
 
+  // One rate histogram per readout layer and threshold.
   const auto rate_edges = br::log_edges(240, 1.0, 1e7);
   std::array<std::array<ThresholdProducts, kThresholdsGeV.size()>, kNReadoutLayers> products{};
 
   for (int layer = 0; layer < kNReadoutLayers; ++layer) {
     for (std::size_t threshold_index = 0; threshold_index < kThresholdsGeV.size(); ++threshold_index) {
-      const std::string name = "h_channel_rate_layer" + std::to_string(layer) + "_" + threshold_tag(kThresholdsGeV[threshold_index]);
+      const std::string name = "h_channel_rate_layer" + std::to_string(layer) + "_" + threshold_tag(kThresholdsGeV[threshold_index]) + "_r1000";
       const std::string title = "LFHCAL per-channel rate, layer " + std::to_string(layer) +
           ", threshold " + threshold_label(kThresholdsGeV[threshold_index]) +
-          ";rate [Hz/channel];channels";
+          ", R < 1000 mm;rate [Hz/channel];channels";
       products[layer][threshold_index].h_rate = new TH1D(name.c_str(), title.c_str(), 240, rate_edges.data());
     }
   }
@@ -149,12 +190,14 @@ int main(int argc, char* argv[]) {
   std::uint64_t n_events = 0;
   br::FileProgress progress(files.size(), std::cerr);
 
+  // Loop input files.
   for (const auto& path : files) {
     progress.tick();
     podio::ROOTReader reader;
     reader.openFile(path.string());
     const std::size_t total_events = reader.getEntries("events");
 
+    // Loop events.
     for (std::size_t event_index = 0; event_index < total_events; ++event_index) {
       auto data = reader.readEntry("events", event_index);
       if (!data) continue;
@@ -163,6 +206,7 @@ int main(int argc, char* argv[]) {
       if (!br::has_collection(frame, kHitCollection)) continue;
       ++n_events;
 
+      // For this event, store the summed energy seen by each channel in each readout layer.
       std::array<std::unordered_map<br::LFHCALChannelID, double, br::LFHCALChannelIDHash>, kNReadoutLayers> channel_energy_by_layer;
       const auto& hits = frame.get<edm4hep::SimCalorimeterHitCollection>(kHitCollection);
 
@@ -174,6 +218,11 @@ int main(int argc, char* argv[]) {
         const auto channel = decoder.channel(cell_id);
         if (channel.rlayerz < 0 || channel.rlayerz >= kNReadoutLayers) continue;
 
+        // Keep just the central channels whose transverse radius is below 1000 mm.
+        const auto position = decoder.position(cell_id);
+        const double radius_mm2 = position.x_mm * position.x_mm + position.y_mm * position.y_mm;
+        if (radius_mm2 > kMaxRadiusMm2) continue;
+
         channel_energy_by_layer[channel.rlayerz][channel] += hit.getEnergy();
       }
 
@@ -182,6 +231,8 @@ int main(int argc, char* argv[]) {
         for (const auto& [channel, energy] : channel_energy_by_layer[layer]) {
           for (std::size_t threshold_index = 0; threshold_index < kThresholdsGeV.size(); ++threshold_index) {
             if (energy <= kThresholdsGeV[threshold_index]) continue;
+
+            // Count one threshold-passing event for this channel.
             ++products[layer][threshold_index].channel_passes[channel];
           }
         }
@@ -194,13 +245,28 @@ int main(int argc, char* argv[]) {
     return 1;
   }
 
-  // For each channel, calculate: total passes / total time
   const double total_time_sec = static_cast<double>(n_events) * kEventWindowSec;
+  // Go thru all rlayerz's.
   for (int layer = 0; layer < kNReadoutLayers; ++layer) {
     for (std::size_t threshold_index = 0; threshold_index < kThresholdsGeV.size(); ++threshold_index) {
+      std::vector<double> rates_hz;
+
+      // Loop thru channels that pass the threshold for each threshold.
       for (const auto& [channel, passes] : products[layer][threshold_index].channel_passes) {
         (void)channel;
-        products[layer][threshold_index].h_rate->Fill(static_cast<double>(passes) / total_time_sec);
+
+        // Compute rate.
+        const double rate_hz = static_cast<double>(passes) / total_time_sec;
+        products[layer][threshold_index].h_rate->Fill(rate_hz);
+        rates_hz.push_back(rate_hz);
+      }
+
+      if (!rates_hz.empty()) {
+        std::sort(rates_hz.begin(), rates_hz.end());
+        
+        // Take the 95th quantile from all rates.
+        const std::size_t index = static_cast<std::size_t>(0.95 * static_cast<double>(rates_hz.size() - 1));
+        products[layer][threshold_index].p95_rate_hz = rates_hz[index];
       }
     }
   }
