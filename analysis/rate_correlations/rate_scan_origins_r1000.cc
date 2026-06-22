@@ -59,6 +59,9 @@ constexpr std::array<OriginSpec, 2> kOrigins = {{
     {"pBeamGas", 5},
 }};
 
+// ----------------------------------------------------------------------------------
+// CLI and per-threshold products.
+// ----------------------------------------------------------------------------------
 struct Args {
   std::string input_dir;
   std::string output_file;
@@ -102,6 +105,9 @@ Args parse_args(int argc, char* argv[]) {
   return args;
 }
 
+// ----------------------------------------------------------------------------------
+// Label helpers and drawing.
+// ----------------------------------------------------------------------------------
 std::string threshold_label(double threshold_gev) {
   return std::to_string(static_cast<int>(threshold_gev * 1000.0 + 0.5)) + " MeV";
 }

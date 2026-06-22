@@ -32,6 +32,9 @@ namespace {
 constexpr const char* kHitCollection = "LFHCALHits";
 constexpr int kNReadoutLayers = 7;
 
+// ----------------------------------------------------------------------------------
+// CLI handling.
+// ----------------------------------------------------------------------------------
 struct Args {
   std::string input_dir;
   std::string output_file;
@@ -64,6 +67,7 @@ Args parse_args(int argc, char* argv[]) {
   return args;
 }
 
+// ----------------------------------------------------------------------------------
 void draw_and_write(TDirectory* dir, TH1* hist, const char* canvas_name, bool logx = false, bool logy = false) {
   dir->cd();
   TCanvas canvas(canvas_name, hist->GetTitle(), 1000, 800);

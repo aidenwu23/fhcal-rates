@@ -48,6 +48,9 @@ constexpr double kHistMinimum = 0.8;
 constexpr std::array<double, 5> kThresholdsGeV = {0.0, 0.001, 0.002, 0.003, 0.004};
 const std::array<int, kThresholdsGeV.size()> kColors = {kBlack, kBlue + 1, kGreen + 2, kOrange + 1, kRed + 1};
 
+// ----------------------------------------------------------------------------------
+// CLI and per-threshold products.
+// ----------------------------------------------------------------------------------
 struct Args {
   std::string input_dir;
   std::string output_file;
@@ -86,6 +89,9 @@ Args parse_args(int argc, char* argv[]) {
   return args;
 }
 
+// ----------------------------------------------------------------------------------
+// Label helpers and drawing.
+// ----------------------------------------------------------------------------------
 std::string threshold_label(double threshold_gev) {
   return std::to_string(static_cast<int>(threshold_gev * 1000.0 + 0.5)) + " MeV";
 }

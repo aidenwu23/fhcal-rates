@@ -31,6 +31,9 @@ namespace {
 
 constexpr const char* kHitCollection = "LFHCALHits";
 
+// ----------------------------------------------------------------------------------
+// CLI handling.
+// ----------------------------------------------------------------------------------
 struct Args {
   std::string input_dir;
   std::string output_file;
@@ -60,6 +63,9 @@ Args parse_args(int argc, char* argv[]) {
   return args;
 }
 
+// ----------------------------------------------------------------------------------
+// Helpers.
+// ----------------------------------------------------------------------------------
 std::uint64_t object_key(const podio::ObjectID& id) {
   return (static_cast<std::uint64_t>(static_cast<std::uint32_t>(id.collectionID)) << 32) |
          static_cast<std::uint32_t>(id.index);

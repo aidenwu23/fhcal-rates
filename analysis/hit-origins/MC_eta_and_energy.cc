@@ -46,6 +46,9 @@ const std::vector<OriginInfo> kOrigins = {
     {"other", kGray + 2},
 };
 
+// ----------------------------------------------------------------------------------
+// CLI handling.
+// ----------------------------------------------------------------------------------
 struct Args {
   std::string input_dir;
   std::string output_file;
@@ -75,6 +78,9 @@ Args parse_args(int argc, char* argv[]) {
   return args;
 }
 
+// ----------------------------------------------------------------------------------
+// Math and drawing helpers.
+// ----------------------------------------------------------------------------------
 double eta(const edm4hep::Vector3d& momentum) {
   const double pt = std::hypot(momentum.x, momentum.y);
   if (pt <= 0.0) return 0.0;
