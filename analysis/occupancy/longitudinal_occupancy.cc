@@ -37,12 +37,12 @@ namespace lo = br::occupancy::longitudinal;
 namespace {
 
 // Constant(s)
-constexpr double kDefaultThresholdGeV = 0.001;
+const lo::ThresholdsByLayer kThresholdsGeV = {
+    0.001, 0.001, 0.001, 0.001, 0.001, 0.001, 0.001};
 
 struct Args {
   std::string input_dir;
   std::string output_file;
-  double threshold_geV = kDefaultThresholdGeV;
 };
 
 struct YBinStats {
@@ -53,7 +53,7 @@ struct YBinStats {
 };
 
 void usage(const char* argv0) {
-  std::cerr << "Usage: " << argv0 << " -i INPUT_DIR -o OUTPUT.root [-t THRESHOLD_GEV]\n";
+  std::cerr << "Usage: " << argv0 << " -i INPUT_DIR -o OUTPUT.root\n";
 }
 
 Args parse_args(int argc, char* argv[]) {
@@ -65,8 +65,6 @@ Args parse_args(int argc, char* argv[]) {
       args.input_dir = argv[++i];
     } else if ((arg == "-o" || arg == "--output") && i + 1 < argc) {
       args.output_file = argv[++i];
-    } else if ((arg == "-t" || arg == "--threshold") && i + 1 < argc) {
-      args.threshold_geV = std::stod(argv[++i]);
     } else {
       usage(argv[0]);
       std::exit(1);
@@ -304,8 +302,8 @@ int main(int argc, char* argv[]) {
       podio::Frame frame(std::move(data));
 
       // Process reco and truth occupancy in the longitudinal view.
-      if (lo::process_reco_event(frame, decoder, args.threshold_geV, reco_layers)) ++n_reco_events;
-      if (lo::process_truth_event(frame, decoder, args.threshold_geV, truth_groups)) ++n_truth_events;
+      if (lo::process_reco_event(frame, decoder, kThresholdsGeV, reco_layers)) ++n_reco_events;
+      if (lo::process_truth_event(frame, decoder, kThresholdsGeV, truth_groups)) ++n_truth_events;
     }
   }
 

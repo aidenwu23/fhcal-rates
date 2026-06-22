@@ -15,12 +15,12 @@
 #include "utils.h"
 
 #include <algorithm>
+#include <array>
 #include <cstdint>
 #include <filesystem>
 #include <fstream>
 #include <iomanip>
 #include <iostream>
-#include <array>
 #include <string>
 #include <string_view>
 #include <unordered_map>
@@ -31,13 +31,15 @@ namespace fs = std::filesystem;
 namespace {
 
 constexpr const char* kHitCollection = "LFHCALHits";
-constexpr double kDefaultThresholdGeV = 0.001;
 constexpr double kEventWindowSec = 2e-6;
+constexpr int kNLayers = 7;
+using ThresholdsByLayer = std::array<double, kNLayers>;
+const ThresholdsByLayer kThresholdsGeV = {
+    0.001, 0.001, 0.001, 0.001, 0.001, 0.001, 0.001};
 
 struct Args {
   std::string input_dir;
   std::string output_file;
-  double threshold_geV = kDefaultThresholdGeV;
 };
 
 struct ColumnStats {
@@ -67,7 +69,7 @@ struct EventChannel {
 
 // ----------------------------- handle CLI inputs -----------------------------
 void usage(const char* argv0) {
-  std::cerr << "Usage: " << argv0 << " -i INPUT_DIR -o OUTPUT.csv [-t THRESHOLD_GEV]\n";
+  std::cerr << "Usage: " << argv0 << " -i INPUT_DIR -o OUTPUT.csv\n";
 }
 
 Args parse_args(int argc, char* argv[]) {
@@ -79,8 +81,6 @@ Args parse_args(int argc, char* argv[]) {
       args.input_dir = argv[++i];
     } else if ((arg == "-o" || arg == "--output") && i + 1 < argc) {
       args.output_file = argv[++i];
-    } else if ((arg == "-t" || arg == "--threshold") && i + 1 < argc) {
-      args.threshold_geV = std::stod(argv[++i]);
     } else {
       usage(argv[0]);
       std::exit(1);
@@ -161,7 +161,7 @@ void write_csv(const fs::path& output_path,
 int main(int argc, char* argv[]) {
   const auto args = parse_args(argc, argv);
   const auto files = br::find_root_files(args.input_dir);
-  const double threshold_geV = args.threshold_geV;
+  const auto& thresholds_geV = kThresholdsGeV;
   const br::LFHCALCellIDDecoder decoder;
   if (files.empty()) {
     std::cerr << "No ROOT files found in " << args.input_dir << "\n";
@@ -201,6 +201,8 @@ int main(int argc, char* argv[]) {
       for (const auto& hit : hits) {
         const auto cell_id = static_cast<std::uint64_t>(hit.getCellID());
         const auto channel_id = decoder.channel(cell_id);
+        const int layer = channel_id.rlayerz;
+        if (layer < 0 || layer >= kNLayers) continue;
         auto& event_channel = event_channels[channel_id];
         event_channel.energy_gev += hit.getEnergy();
 
@@ -220,8 +222,10 @@ int main(int argc, char* argv[]) {
       }
 
       for (const auto& [channel_id, event_channel] : event_channels) {
+        const int layer = channel_id.rlayerz;
+        if (layer < 0 || layer >= kNLayers) continue;
         // Apply summed channel threshold.
-        if (event_channel.energy_gev <= threshold_geV) continue;
+        if (event_channel.energy_gev <= thresholds_geV[layer]) continue;
         for (int source_index = 0; source_index < 3; ++source_index) {
           if (!event_channel.source_present[source_index]) continue;
           ++columns[source_index].channel_hits[channel_id];

@@ -4,6 +4,7 @@
 
 #include "decode_cell_id.h"
 
+#include <array>
 #include <cstdint>
 #include <unordered_map>
 #include <vector>
@@ -15,6 +16,7 @@ constexpr double kEventWindowSec = 2e-6;
 constexpr double kDisplayPaddingMM = 25.0;
 constexpr double kXMinMM = -400.0;
 constexpr double kXMaxMM = 300.0;
+using ThresholdsByLayer = std::array<double, kNLayers>;
 
 struct ChannelStats {
   double y_mm = 0.0;

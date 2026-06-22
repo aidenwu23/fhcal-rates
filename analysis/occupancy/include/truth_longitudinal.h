@@ -17,7 +17,7 @@ struct TruthGroup {
 void init_truth_groups(std::vector<TruthGroup>& groups);
 bool process_truth_event(const podio::Frame& frame,
                          const br::LFHCALCellIDDecoder& decoder,
-                         double threshold_geV,
+                         const ThresholdsByLayer& thresholds_geV,
                          std::vector<TruthGroup>& groups);
 
 }  // namespace br::occupancy::longitudinal

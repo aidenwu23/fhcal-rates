@@ -58,7 +58,7 @@ void init_truth_groups(std::vector<TruthOccupancyGroup>& groups) {
 
 bool process_truth_event(const podio::Frame& frame,
                          const br::LFHCALCellIDDecoder& decoder,
-                         double threshold_geV,
+                         const ThresholdsByLayer& thresholds_geV,
                          std::vector<TruthOccupancyGroup>& groups) {
   if (!br::has_collection(frame, kTruthHitCollection)) return false;
 
@@ -103,7 +103,7 @@ bool process_truth_event(const podio::Frame& frame,
   for (int layer = 0; layer < kNLayers; ++layer) {
     for (const auto& [channel_id, event_channel] : event_channels[layer]) {
       // Apply summed channel threshold.
-      if (event_channel.energy_gev <= threshold_geV) continue;
+      if (event_channel.energy_gev <= thresholds_geV[layer]) continue;
 
       // Loop through all seen origins for this channel.
       for (int origin_index = 0; origin_index < kAllTruthIndex; ++origin_index) {

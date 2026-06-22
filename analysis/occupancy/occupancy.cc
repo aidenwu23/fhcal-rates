@@ -30,12 +30,12 @@ namespace fs = std::filesystem;
 namespace {
 
 // Constant(s)
-constexpr double kDefaultThresholdGeV = 0.001;
+const br::occupancy::ThresholdsByLayer kThresholdsGeV = {
+    0.001, 0.001, 0.001, 0.001, 0.001, 0.001, 0.001};
 
 struct Args {
   std::string input_dir;
   std::string output_file;
-  double threshold_geV = kDefaultThresholdGeV;
 };
 
 void usage(const char* argv0);
@@ -50,8 +50,6 @@ Args parse_args(int argc, char* argv[]) {
       args.input_dir = argv[++i];
     } else if ((arg == "-o" || arg == "--output") && i + 1 < argc) {
       args.output_file = argv[++i];
-    } else if ((arg == "-t" || arg == "--threshold") && i + 1 < argc) {
-      args.threshold_geV = std::stod(argv[++i]);
     } else {
       usage(argv[0]);
       std::exit(1);
@@ -67,7 +65,7 @@ Args parse_args(int argc, char* argv[]) {
 }
 
 void usage(const char* argv0) {
-  std::cerr << "Usage: " << argv0 << " -i INPUT_DIR -o OUTPUT.root [-t THRESHOLD_GEV]\n";
+  std::cerr << "Usage: " << argv0 << " -i INPUT_DIR -o OUTPUT.root\n";
 }
 
 // Write all plots for one readout z layer.
@@ -205,7 +203,7 @@ int main(int argc, char* argv[]) {
   const auto args = parse_args(argc, argv);
   const auto& input_dir = args.input_dir;
   const auto& output_file = args.output_file;
-  const double threshold_geV = args.threshold_geV;
+  const auto& thresholds_geV = kThresholdsGeV;
 
   // Create a decoder for cell IDs.
   const br::LFHCALCellIDDecoder decoder;
@@ -249,8 +247,8 @@ int main(int argc, char* argv[]) {
 
       podio::Frame frame(std::move(data));
 
-      if (br::occupancy::process_reco_event(frame, decoder, threshold_geV, reco_layers)) ++n_reco_events;
-      if (br::occupancy::process_truth_event(frame, decoder, threshold_geV, truth_groups)) ++n_truth_events;
+      if (br::occupancy::process_reco_event(frame, decoder, thresholds_geV, reco_layers)) ++n_reco_events;
+      if (br::occupancy::process_truth_event(frame, decoder, thresholds_geV, truth_groups)) ++n_truth_events;
     }
   }
 

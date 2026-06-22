@@ -6,6 +6,7 @@
 
 #include "decode_cell_id.h"
 
+#include <array>
 #include <cstdint>
 #include <set>
 #include <unordered_map>
@@ -18,6 +19,7 @@ constexpr int kNLayers = 7;
 constexpr int kAllLayersIndex = kNLayers;
 constexpr double kEventWindowSec = 2e-6;
 constexpr double kDisplayPaddingMM = 25.0;
+using ThresholdsByLayer = std::array<double, kNLayers>;
 
 struct ChannelStats {
   std::unordered_set<std::uint64_t> raw_cell_ids;

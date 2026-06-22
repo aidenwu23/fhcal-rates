@@ -17,6 +17,7 @@
 #include "decode_cell_id.h"
 #include "utils.h"
 
+#include <array>
 #include <cstdint>
 #include <filesystem>
 #include <iostream>
@@ -30,8 +31,10 @@ namespace fs = std::filesystem;
 namespace {
 
 constexpr const char* kTruthHitCollection = "LFHCALHits";
-constexpr double kDefaultThresholdGeV = 0.001;
 constexpr int kNLayers = 7;
+using ThresholdsByLayer = std::array<double, kNLayers>;
+const ThresholdsByLayer kThresholdsGeV = {
+    0.001, 0.001, 0.001, 0.001, 0.001, 0.001, 0.001};
 
 // ----------------------------------------------------------------------------------
 // CLI and per-event bookkeeping.
@@ -39,7 +42,6 @@ constexpr int kNLayers = 7;
 struct Args {
   std::string input_dir;
   std::string output_file;
-  double threshold_geV = kDefaultThresholdGeV;
 };
 
 using EventCounts = std::unordered_map<br::LFHCALChannelID, int, br::LFHCALChannelIDHash>;
@@ -50,7 +52,7 @@ struct EventChannel {
 };
 
 void usage(const char* argv0) {
-  std::cerr << "Usage: " << argv0 << " -i INPUT_DIR -o OUTPUT.root [-t THRESHOLD_GEV]\n";
+  std::cerr << "Usage: " << argv0 << " -i INPUT_DIR -o OUTPUT.root\n";
 }
 
 Args parse_args(int argc, char* argv[]) {
@@ -62,8 +64,6 @@ Args parse_args(int argc, char* argv[]) {
       args.input_dir = argv[++i];
     } else if ((arg == "-o" || arg == "--output") && i + 1 < argc) {
       args.output_file = argv[++i];
-    } else if ((arg == "-t" || arg == "--threshold") && i + 1 < argc) {
-      args.threshold_geV = std::stod(argv[++i]);
     } else {
       usage(argv[0]);
       std::exit(1);
@@ -112,7 +112,7 @@ void write_layer_hists(TDirectory* parent, const std::vector<TH1D*>& hists) {
 
 bool process_truth_event(const podio::Frame& frame,
                          const br::LFHCALCellIDDecoder& decoder,
-                         double threshold_geV,
+                         const ThresholdsByLayer& thresholds_geV,
                          const std::vector<TH1D*>& hists) {
   if (!br::has_collection(frame, kTruthHitCollection)) return false;
 
@@ -135,7 +135,7 @@ bool process_truth_event(const podio::Frame& frame,
   for (int layer = 0; layer < kNLayers; ++layer) {
     for (const auto& [channel_id, event_channel] : event_channels[layer]) {
       // Apply summed channel threshold.
-      if (event_channel.energy_gev <= threshold_geV) continue;
+      if (event_channel.energy_gev <= thresholds_geV[layer]) continue;
       event_counts[layer][channel_id] = event_channel.hit_count;
     }
   }
@@ -182,7 +182,7 @@ int main(int argc, char* argv[]) {
       if (!data) continue;
 
       podio::Frame frame(std::move(data));
-      if (process_truth_event(frame, decoder, args.threshold_geV, hists)) ++n_events;
+      if (process_truth_event(frame, decoder, kThresholdsGeV, hists)) ++n_events;
     }
   }
 

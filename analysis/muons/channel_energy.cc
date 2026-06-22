@@ -1,6 +1,6 @@
 /*
 
-./build/channel_energy -i data/mu-_10GeV_lfhcal_10k.edm4hep.root -o plots/muons/channel_energy.root
+./build/channel_energy -i data/mu-_10GeV_lfhcal_50k.edm4hep.root -o plots/muons/channel_energy.root
 
 */
 
@@ -32,6 +32,9 @@ namespace {
 
 constexpr const char* kHitCollection = "LFHCALHits";
 constexpr int kNReadoutLayers = 7;
+constexpr double kMaxRadiusMm = 1000.0;
+constexpr double kMaxRadiusMm2 = kMaxRadiusMm * kMaxRadiusMm;
+constexpr double kMinContributionGeV = 0.0005;
 
 // ----------------------------------------------------------------------------------
 // CLI handling.
@@ -130,7 +133,20 @@ int main(int argc, char* argv[]) {
       const auto channel = decoder.channel(cell_id);
       if (channel.rlayerz < 0 || channel.rlayerz >= kNReadoutLayers) continue;
 
-      channel_energy_by_layer[channel.rlayerz][channel] += hit.getEnergy();
+      // Keep just the central channels whose transverse radius is below 1000 mm.
+      const auto position = decoder.position(cell_id);
+      const double radius_mm2 = position.x_mm * position.x_mm + position.y_mm * position.y_mm;
+      if (radius_mm2 > kMaxRadiusMm2) continue;
+
+      double filtered_hit_energy_gev = 0.0;
+
+      // Skip tiny contributions before adding this hit's energy into the channel sum.
+      for (const auto& contribution : hit.getContributions()) {
+        if (contribution.getEnergy() < kMinContributionGeV) continue;
+        filtered_hit_energy_gev += contribution.getEnergy();
+      }
+
+      channel_energy_by_layer[channel.rlayerz][channel] += filtered_hit_energy_gev;
     }
 
     // Once the full event has been summed, fill one entry per channel into the layer histogram.
