@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 
-python3 scripts/data_prep/run_bkg.py 100 199 -o data/reco_bkg_apr --list data/metadata/bkg_apr.txt --delete-intermediates
+python3 scripts/data_prep/run_bkg.py 199 299 -o data/reco_bkg_apr --list data/metadata/bkg_apr.txt --delete-intermediates
 
 """
 

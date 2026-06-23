@@ -146,7 +146,9 @@ int main(int argc, char* argv[]) {
         filtered_hit_energy_gev += contribution.getEnergy();
       }
 
-      channel_energy_by_layer[channel.rlayerz][channel] += filtered_hit_energy_gev;
+      if (filtered_hit_energy_gev > 0.0) {
+        channel_energy_by_layer[channel.rlayerz][channel] += filtered_hit_energy_gev;
+      }
     }
 
     // Once the full event has been summed, fill one entry per channel into the layer histogram.

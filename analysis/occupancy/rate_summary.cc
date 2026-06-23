@@ -34,8 +34,17 @@ constexpr const char* kHitCollection = "LFHCALHits";
 constexpr double kEventWindowSec = 2e-6;
 constexpr int kNLayers = 7;
 using ThresholdsByLayer = std::array<double, kNLayers>;
+constexpr double MIP_1 = 3.5e-3;
+constexpr double MIP_2 = 7.25e-3;
+constexpr double kCoefficient = 1.0;
 const ThresholdsByLayer kThresholdsGeV = {
-    0.001, 0.001, 0.001, 0.001, 0.001, 0.001, 0.001};
+    kCoefficient * MIP_1,
+    kCoefficient * MIP_1,
+    kCoefficient * MIP_2,
+    kCoefficient * MIP_2,
+    kCoefficient * MIP_2,
+    kCoefficient * MIP_2,
+    kCoefficient * MIP_2};
 
 struct Args {
   std::string input_dir;
