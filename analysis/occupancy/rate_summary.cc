@@ -1,6 +1,6 @@
 /*
 
-./build/rate_summary -i data/reco_bkg_feb -o plots/occupancy/rate_summary.csv
+./build/rate_summary -i data/bkg_apr -o plots/occupancy/rate_summary.csv
 
 */
 
@@ -35,8 +35,8 @@ constexpr double kEventWindowSec = 2e-6;
 constexpr int kNLayers = 7;
 using ThresholdsByLayer = std::array<double, kNLayers>;
 constexpr double MIP_1 = 3.5e-3;
-constexpr double MIP_2 = 7.25e-3;
-constexpr double kCoefficient = 1.0;
+constexpr double MIP_2 = 7.0e-3;
+constexpr double kCoefficient = 0.0;
 const ThresholdsByLayer kThresholdsGeV = {
     kCoefficient * MIP_1,
     kCoefficient * MIP_1,
@@ -105,14 +105,19 @@ Args parse_args(int argc, char* argv[]) {
 }
 
 // --------------------------- compute rate numbers ----------------------------
-// Highest per-channel rate.
-double hottest_channel_rate_hz(const ColumnStats& stats, double total_time_sec) {
-  std::uint64_t hottest_hits = 0;
+double percentile_channel_rate_hz(const ColumnStats& stats, double total_time_sec, std::size_t percentile) {
+  if (stats.channel_hits.empty() || total_time_sec <= 0.0) return 0.0;
+
+  std::vector<std::uint64_t> counts;
+  counts.reserve(stats.channel_hits.size());
   for (const auto& [channel, hits] : stats.channel_hits) {
     (void)channel;
-    hottest_hits = std::max(hottest_hits, hits);
+    counts.push_back(hits);
   }
-  return total_time_sec > 0.0 ? static_cast<double>(hottest_hits) / total_time_sec : 0.0;
+
+  std::sort(counts.begin(), counts.end());
+  const std::size_t index = (percentile * (counts.size() - 1)) / 100;
+  return static_cast<double>(counts[index]) / total_time_sec;
 }
 
 // Avg rate per channel.
@@ -146,9 +151,15 @@ void write_csv(const fs::path& output_path,
 
   out << std::setprecision(10);
 
-  out << "hottest_channel_avg_hz";
+  out << "p95_channel_hz";
   for (int i = 0; i < kNColumns; ++i) {
-    out << ',' << hottest_channel_rate_hz(columns[i], total_time_sec);
+    out << ',' << percentile_channel_rate_hz(columns[i], total_time_sec, 95);
+  }
+  out << '\n';
+
+  out << "p99_channel_hz";
+  for (int i = 0; i < kNColumns; ++i) {
+    out << ',' << percentile_channel_rate_hz(columns[i], total_time_sec, 99);
   }
   out << '\n';
 

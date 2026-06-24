@@ -1,6 +1,6 @@
 /*
 
-./build/rate_scan -i data/reco_bkg_apr -o plots/occupancy/rate_scan.root
+./build/rate_scan -i data/bkg_apr -o plots/occupancy/rate_scan.root
 
 */
 
@@ -42,9 +42,9 @@ constexpr int kNReadoutLayers = 7;
 constexpr double kEventWindowSec = 2e-6;
 
 constexpr double MIP_1 = 3.5e-3;
-constexpr double MIP_2 = 7.25e-3;
-constexpr std::array<double, 11> kCoefficients = {0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0};
-const std::array<int, kCoefficients.size()> kColors = {kBlack, kBlue + 1, kGreen + 2, kOrange + 1, kRed + 1};
+constexpr double MIP_2 = 7.0e-3;
+constexpr std::array<double, 6> kCoefficients = {0.0, 0.2, 0.4, 0.6, 0.8, 1.0};
+const std::array<int, kCoefficients.size()> kColors = {kBlack, kBlue + 1, kGreen + 2, kOrange + 1, kRed + 1, kMagenta + 1};
 
 // ----------------------------------------------------------------------------------
 // CLI and per-threshold products.
@@ -58,6 +58,7 @@ struct ThresholdProducts {
   TH1D* h_rate = nullptr;
   std::unordered_map<br::LFHCALChannelID, std::uint64_t, br::LFHCALChannelIDHash> channel_passes;
   double p95_rate_hz = 0.0;
+  double p99_rate_hz = 0.0;
 };
 
 void usage(const char* argv0) {
@@ -106,28 +107,30 @@ std::string threshold_tag(double threshold_mip) {
   return buffer;
 }
 
-std::string percentile_label(double threshold_mip, double p95_rate_hz) {
+std::string percentile_label(double threshold_mip, double percentile_rate_hz, int percentile) {
   char buffer[128];
   std::snprintf(buffer,
                 sizeof(buffer),
-                "%s (p95 %.3g Hz)",
+                "%s (p%d %.3g Hz)",
                 threshold_label(threshold_mip).c_str(),
-                p95_rate_hz);
+                percentile,
+                percentile_rate_hz);
   return buffer;
 }
 
 void draw_rate_overlay(TDirectory* dir,
                        const std::array<ThresholdProducts, kCoefficients.size()>& products,
-                       int layer) {
+                       int layer,
+                       int percentile) {
   dir->cd();
-  TCanvas canvas(("c_layer" + std::to_string(layer) + "_rate_threshold_overlay").c_str(),
+  TCanvas canvas(("c_layer" + std::to_string(layer) + "_rate_threshold_overlay_p" + std::to_string(percentile)).c_str(),
                  ("Layer " + std::to_string(layer) + " rate threshold overlay").c_str(),
                  1000,
                  800);
   canvas.SetLogx();
   canvas.SetLogy();
 
-  TLegend legend(0.65, 0.65, 0.88, 0.88);
+  TLegend legend(0.765, 0.65, 0.88, 0.88);
   legend.SetBorderSize(0);
   legend.SetFillStyle(0);
 
@@ -150,16 +153,19 @@ void draw_rate_overlay(TDirectory* dir,
     hist->SetTitle(("Layer " + std::to_string(layer) + ";rate [Hz/channel];channels").c_str());
     hist->Draw(drew ? "hist same" : "hist");
     drew = true;
+    const double percentile_rate_hz = percentile == 95 ? products[threshold_index].p95_rate_hz
+                                                       : products[threshold_index].p99_rate_hz;
     legend.AddEntry(hist,
-                    percentile_label(kCoefficients[threshold_index], products[threshold_index].p95_rate_hz).c_str(),
+                    percentile_label(kCoefficients[threshold_index], percentile_rate_hz, percentile).c_str(),
                     "l");
   }
 
   for (std::size_t threshold_index = 0; threshold_index < kCoefficients.size(); ++threshold_index) {
     const auto& product = products[threshold_index];
-    if (product.p95_rate_hz <= 0.0) continue;
+    const double percentile_rate_hz = percentile == 95 ? product.p95_rate_hz : product.p99_rate_hz;
+    if (percentile_rate_hz <= 0.0) continue;
 
-    auto* line = new TLine(product.p95_rate_hz, 0.8, product.p95_rate_hz, 1.25 * max_y);
+    auto* line = new TLine(percentile_rate_hz, 0.8, percentile_rate_hz, 1.25 * max_y);
     line->SetLineColor(kColors[threshold_index]);
     line->SetLineStyle(2);
     line->SetLineWidth(2);
@@ -267,9 +273,10 @@ int main(int argc, char* argv[]) {
       if (!rates_hz.empty()) {
         std::sort(rates_hz.begin(), rates_hz.end());
 
-        // Take the 95th quantile from all rates.
-        const std::size_t index = static_cast<std::size_t>(0.95 * static_cast<double>(rates_hz.size() - 1));
-        products[layer][threshold_index].p95_rate_hz = rates_hz[index];
+        const std::size_t p95_index = static_cast<std::size_t>(0.95 * static_cast<double>(rates_hz.size() - 1));
+        const std::size_t p99_index = static_cast<std::size_t>(0.99 * static_cast<double>(rates_hz.size() - 1));
+        products[layer][threshold_index].p95_rate_hz = rates_hz[p95_index];
+        products[layer][threshold_index].p99_rate_hz = rates_hz[p99_index];
       }
     }
   }
@@ -288,8 +295,11 @@ int main(int argc, char* argv[]) {
     }
   }
 
+  auto* p95_dir = output.mkdir("p95");
+  auto* p99_dir = output.mkdir("p99");
   for (int layer = 0; layer < kNReadoutLayers; ++layer) {
-    draw_rate_overlay(&output, products[layer], layer);
+    draw_rate_overlay(p95_dir, products[layer], layer, 95);
+    draw_rate_overlay(p99_dir, products[layer], layer, 99);
   }
 
   std::cout << "\n";

@@ -1,6 +1,6 @@
 /*
 
-./build/energy_spectrum -i data/reco_bkg_apr -o plots/occupancy/energy_spectrum.root
+./build/energy_spectrum -i data/bkg_apr -o plots/occupancy/energy_spectrum.root
 
 */
 

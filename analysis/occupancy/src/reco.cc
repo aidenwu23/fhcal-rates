@@ -47,6 +47,7 @@ bool process_reco_event(const podio::Frame& frame,
 
     // Get layer and cellID.
     const int layer = hit.getLayer();
+    // TODO: Check that hit.getLayer() always matches decoder.channel(cell_id).rlayerz, as truth uses decoded rlayerz.
     if (layer < 0 || layer >= kNLayers) continue;
 
     // Decode channel ID from cell ID.

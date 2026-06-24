@@ -1,6 +1,6 @@
 /*
 
-./build/hit_origins -i data/reco_bkg_apr -o plots/hit-origins/origins.root
+./build/hit_origins -i data/bkg_apr -o plots/hit-origins/origins.root
 
 */
 
@@ -267,7 +267,7 @@ int main(int argc, char* argv[]) {
 
           // generator status | origin type | contribution origin
           // ----------------------------------------------------
-          //   [0,1000)       |   DIS       |         0
+          //   [1,1000)       |   DIS       |         0
           //   [2000,3000)    |   synrad    |         1
           //   [3000,4000)    |   eBrem     |         2
           //   [4000,5000)    |   eTouschek |         3

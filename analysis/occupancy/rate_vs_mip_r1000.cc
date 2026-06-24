@@ -1,6 +1,6 @@
 /*
 
-./build/rate_vs_mip -i data/bkg_apr -o plots/occupancy/rate_vs_mip.root
+./build/rate_vs_mip_r1000 -i data/bkg_apr -o plots/occupancy/rate_vs_mip_r1000.root
 
 */
 
@@ -38,6 +38,8 @@ namespace {
 constexpr const char* kHitCollection = "LFHCALHits";
 constexpr int kNReadoutLayers = 7;
 constexpr double kEventWindowSec = 2e-6;
+constexpr double kMaxRadiusMm = 1000.0;
+constexpr double kMaxRadiusMm2 = kMaxRadiusMm * kMaxRadiusMm;
 
 // The first two readout layers use one MIP scale, and the later layers use another.
 constexpr double MIP_1 = 3.5e-3;
@@ -106,7 +108,7 @@ std::string percentile_tag(double percentile) {
 }
 
 std::string percentile_title(double percentile) {
-  return percentile_tag(percentile) + " rate vs MIP coefficient;MIP coefficient;rate [Hz/channel]";
+  return percentile_tag(percentile) + " rate vs MIP coefficient, R < 1000 mm;MIP coefficient;rate [Hz/channel]";
 }
 
 // Write one overlay plot for one percentile choice.
@@ -211,6 +213,10 @@ int main(int argc, char* argv[]) {
 
         const auto channel = decoder.channel(cell_id);
         if (channel.rlayerz < 0 || channel.rlayerz >= kNReadoutLayers) continue;
+
+        const auto position = decoder.position(cell_id);
+        const double radius_mm2 = position.x_mm * position.x_mm + position.y_mm * position.y_mm;
+        if (radius_mm2 > kMaxRadiusMm2) continue;
 
         channel_energy_by_layer[channel.rlayerz][channel] += hit.getEnergy();
       }

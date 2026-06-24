@@ -1,6 +1,6 @@
 /*
 
-./build/longitudinal_occupancy -i data/reco_bkg_apr -o plots/occupancy/longitudinal_occupancy.root
+./build/longitudinal_occupancy -i data/bkg_apr -o plots/occupancy/longitudinal_occupancy.root
 
 */
 
@@ -14,7 +14,6 @@
 #include <podio/Frame.h>
 #include <podio/ROOTReader.h>
 
-#include "reco_longitudinal.h"
 #include "truth_longitudinal.h"
 #include "utils.h"
 
@@ -38,8 +37,8 @@ namespace {
 
 // Constant(s)
 constexpr double MIP_1 = 3.5e-3;
-constexpr double MIP_2 = 7.25e-3;
-constexpr double kCoefficient = 1.0;
+constexpr double MIP_2 = 7.0e-3;
+constexpr double kCoefficient = 0.5;
 const lo::ThresholdsByLayer kThresholdsGeV = {
     kCoefficient * MIP_1,
     kCoefficient * MIP_1,
@@ -56,7 +55,6 @@ struct Args {
 
 struct YBinStats {
   double sum_avg = 0.0;
-  double sum_max = 0.0;
   double y_mm = 0.0;
   int n_channels = 0;
 };
@@ -157,25 +155,19 @@ void write_group_directory(TDirectory* parent,
   // layer on x, y on y, and channel-averaged content in each (layer, y) bin.
   auto* h_avg = new TH2D(
       "h_avg",
-      "Longitudinal occupancy;readout layer;y [mm];avg hits/event/channel",
-      lo::kNLayers, -0.5, lo::kNLayers - 0.5,
-      static_cast<int>(y_edges.size()) - 1, y_edges.data());
-
-  auto* h_max = new TH2D(
-      "h_max",
-      "Longitudinal occupancy;readout layer;y [mm];avg max hits/event/channel",
+      "Occupancy in central slice;readout layer;y [mm];avg hits/event/channel",
       lo::kNLayers, -0.5, lo::kNLayers - 0.5,
       static_cast<int>(y_edges.size()) - 1, y_edges.data());
 
   auto* h_rate = new TH2D(
       "h_rate",
-      "Longitudinal occupancy;readout layer;y [mm];rate [Hz/channel]",
+      "Rates in central slice;readout layer;y [mm];rate [Hz/channel]",
       lo::kNLayers, -0.5, lo::kNLayers - 0.5,
       static_cast<int>(y_edges.size()) - 1, y_edges.data());
 
   auto* h_avg_y = new TH1D(
       "h_avg_y",
-      "Longitudinal occupancy;y [mm];avg hits/event/channel",
+      "Occupancy in central slice;y [mm];avg hits/event/channel",
       static_cast<int>(y_edges.size()) - 1, y_edges.data());
 
   // One map per readout layer; each map groups channels by y row.
@@ -193,7 +185,6 @@ void write_group_directory(TDirectory* parent,
       auto& yz = yz_bins[layer][stats.y_mm];
       yz.y_mm = stats.y_mm;
       yz.sum_avg += avg;
-      yz.sum_max += static_cast<double>(stats.max_hits_event);
       ++yz.n_channels;
 
       auto& y = y_bins[stats.y_mm];
@@ -209,9 +200,7 @@ void write_group_directory(TDirectory* parent,
       (void)y_mm;
       if (stats.n_channels == 0) continue;
       const double avg = stats.sum_avg / static_cast<double>(stats.n_channels);
-      const double avg_max = stats.sum_max / static_cast<double>(stats.n_channels);
       h_avg->Fill(layer, stats.y_mm, avg);
-      h_max->Fill(layer, stats.y_mm, avg_max);
       h_rate->Fill(layer, stats.y_mm, avg / lo::kEventWindowSec);
     }
   }
@@ -226,7 +215,6 @@ void write_group_directory(TDirectory* parent,
   auto* hist_dir = parent->mkdir("hists");
   hist_dir->cd();
   h_avg->Write();
-  h_max->Write();
   h_rate->Write();
   h_avg_y->Write();
   for (int layer = 0; layer < lo::kNLayers; ++layer) {
@@ -234,19 +222,11 @@ void write_group_directory(TDirectory* parent,
   }
 
   draw_and_write(parent, h_avg, "c_avg", true, false);
-  draw_and_write(parent, h_max, "c_max", true, false);
   draw_and_write(parent, h_rate, "c_rate", true, false);
   draw_and_write(parent, h_avg_y, "c_avg_y", false, false);
   for (int layer = 0; layer < lo::kNLayers; ++layer) {
     draw_and_write(parent, layers[layer].h_hits_evt, ("c_hits_evt_layer" + std::to_string(layer)).c_str(), false, true);
   }
-}
-
-void write_reco(TFile& output,
-                const std::vector<lo::LayerAccum>& reco_layers,
-                std::uint64_t n_events) {
-  auto* dir = output.mkdir("reco");
-  write_group_directory(dir, reco_layers, n_events);
 }
 
 void write_truth(TFile& output,
@@ -284,13 +264,10 @@ int main(int argc, char* argv[]) {
   // Create a decoder for cell IDs.
   const br::LFHCALCellIDDecoder decoder;
 
-  // Initialize accumulators for reco and truth.
-  std::vector<lo::LayerAccum> reco_layers;
-  lo::init_reco_layers(reco_layers);
+  // NOTE: reco unavailable for now due to some timing issues with background.
   std::vector<lo::TruthGroup> truth_groups;
   lo::init_truth_groups(truth_groups);
 
-  std::uint64_t n_reco_events = 0;
   std::uint64_t n_truth_events = 0;
   br::FileProgress progress(files.size(), std::cerr);
 
@@ -310,14 +287,13 @@ int main(int argc, char* argv[]) {
 
       podio::Frame frame(std::move(data));
 
-      // Process reco and truth occupancy in the longitudinal view.
-      if (lo::process_reco_event(frame, decoder, kThresholdsGeV, reco_layers)) ++n_reco_events;
+      // NOTE: reco unavailable for now due to some timing issues with background.
       if (lo::process_truth_event(frame, decoder, kThresholdsGeV, truth_groups)) ++n_truth_events;
     }
   }
 
-  if (n_reco_events == 0 && n_truth_events == 0) {
-    std::cerr << "No events with LFHCALRecHits or LFHCALHits found\n";
+  if (n_truth_events == 0) {
+    std::cerr << "No events with LFHCALHits found\n";
     return 1;
   }
 
@@ -329,7 +305,6 @@ int main(int argc, char* argv[]) {
 
   // Write output plots.
   if (n_truth_events > 0) write_truth(output, truth_groups, n_truth_events);
-  if (n_reco_events > 0) write_reco(output, reco_layers, n_reco_events);
 
   std::cout << "\n";
   output.Close();

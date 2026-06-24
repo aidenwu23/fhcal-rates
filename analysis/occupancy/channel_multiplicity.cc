@@ -1,6 +1,6 @@
 /*
 
-./build/channel_multiplicity -i data/reco_bkg_apr -o plots/occupancy/channel_multiplicity.root
+./build/channel_multiplicity -i data/bkg_apr -o plots/occupancy/channel_multiplicity.root
 
 */
 
@@ -34,8 +34,8 @@ constexpr const char* kTruthHitCollection = "LFHCALHits";
 constexpr int kNLayers = 7;
 using ThresholdsByLayer = std::array<double, kNLayers>;
 constexpr double MIP_1 = 3.5e-3;
-constexpr double MIP_2 = 7.25e-3;
-constexpr double kCoefficient = 1.0;
+constexpr double MIP_2 = 7.0e-3;
+constexpr double kCoefficient = 0.5;
 const ThresholdsByLayer kThresholdsGeV = {
     kCoefficient * MIP_1,
     kCoefficient * MIP_1,

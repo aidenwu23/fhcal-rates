@@ -1,6 +1,6 @@
 /*
 
-./build/occupancy -i data/reco_bkg_apr -o plots/occupancy/occupancy.root
+./build/occupancy -i data/bkg_apr -o plots/occupancy/occupancy.root
 
 */
 
@@ -13,7 +13,6 @@
 #include <podio/ROOTReader.h>
 
 #include "shared.h"
-#include "reco.h"
 #include "truth.h"
 #include "utils.h"
 
@@ -31,8 +30,8 @@ namespace {
 
 // Constant(s)
 constexpr double MIP_1 = 3.5e-3;
-constexpr double MIP_2 = 7.25e-3;
-constexpr double kCoefficient = 1.0;
+constexpr double MIP_2 = 7.0e-3;
+constexpr double kCoefficient = 0.5;
 const br::occupancy::ThresholdsByLayer kThresholdsGeV = {
     kCoefficient * MIP_1,
     kCoefficient * MIP_1,
@@ -111,13 +110,6 @@ void write_layer_directory(TDirectory* parent,
       static_cast<int>(x_edges.size()) - 1, x_edges.data(),
       static_cast<int>(y_edges.size()) - 1, y_edges.data());
 
-  auto* h_max = new TH2D(
-      "h_max",
-      (layer == br::occupancy::kAllLayersIndex ? std::string("Summed layers;x [mm];y [mm];max hits/event/channel")
-        : std::string("Layer ") + std::to_string(layer) + ";x [mm];y [mm];max hits/event/channel").c_str(),
-      static_cast<int>(x_edges.size()) - 1, x_edges.data(),
-      static_cast<int>(y_edges.size()) - 1, y_edges.data());
-
   auto* h_rate = new TH2D(
       "h_rate",
       (layer == br::occupancy::kAllLayersIndex ? std::string("Summed layers;x [mm];y [mm];rate [Hz/channel]")
@@ -139,7 +131,6 @@ void write_layer_directory(TDirectory* parent,
     const double avg = static_cast<double>(stats.total_hits) / static_cast<double>(n_events);
     const double rate = static_cast<double>(stats.total_hits) / (static_cast<double>(n_events) * br::occupancy::kEventWindowSec);
     h_avg->Fill(stats.x_mm, stats.y_mm, avg);
-    h_max->Fill(stats.x_mm, stats.y_mm, stats.max_hits_event);
     h_rate->Fill(stats.x_mm, stats.y_mm, rate);
     h_avg_r->Fill(stats.r(), avg);
     h_nchan_r->Fill(stats.r(), 1.0);
@@ -153,27 +144,15 @@ void write_layer_directory(TDirectory* parent,
   auto* hist_dir = dir->mkdir("hists");
   hist_dir->cd();
   h_avg->Write();
-  h_max->Write();
   h_rate->Write();
   h_avg_r->Write();
   h_nchan_r->Write();
   layer_accum.h_hits_evt->Write();
 
   br::occupancy::draw_and_write(dir, h_avg, "c_avg", true, false);
-  br::occupancy::draw_and_write(dir, h_max, "c_max", true, false);
   br::occupancy::draw_and_write(dir, h_rate, "c_rate", true, false);
   br::occupancy::draw_and_write(dir, h_avg_r, "c_avg_r", false, false);
   br::occupancy::draw_and_write(dir, layer_accum.h_hits_evt, "c_hits_evt", false, true);
-}
-
-// Reco doesn't have contributions, so just write one for every layer.
-void write_reco(TFile& output,
-                const std::vector<br::occupancy::LayerAccum>& reco_layers,
-                std::uint64_t n_events) {
-  auto* parent = output.mkdir("reco");
-  for (int layer = 0; layer <= br::occupancy::kNLayers; ++layer) {
-    write_layer_directory(parent, reco_layers[layer], layer, n_events);
-  }
 }
 
 // Truth has access to contributions, so write one for each origin type in addition to one for every layer.
@@ -227,13 +206,10 @@ int main(int argc, char* argv[]) {
   fs::path output_path = output_file;
   if (output_path.has_parent_path()) fs::create_directories(output_path.parent_path());
 
-  // Initialize layer accumulators and histograms.
-  std::vector<br::occupancy::LayerAccum> reco_layers;
-  br::occupancy::init_reco_layers(reco_layers);
+  // NOTE: reco unavailable for now due to some timing issues with background.
   std::vector<br::occupancy::TruthOccupancyGroup> truth_groups;
   br::occupancy::init_truth_groups(truth_groups);
 
-  std::uint64_t n_reco_events = 0;
   std::uint64_t n_truth_events = 0;
 
   br::FileProgress progress(files.size(), std::cerr);
@@ -256,13 +232,12 @@ int main(int argc, char* argv[]) {
 
       podio::Frame frame(std::move(data));
 
-      if (br::occupancy::process_reco_event(frame, decoder, thresholds_geV, reco_layers)) ++n_reco_events;
       if (br::occupancy::process_truth_event(frame, decoder, thresholds_geV, truth_groups)) ++n_truth_events;
     }
   }
 
-  if (n_reco_events == 0 && n_truth_events == 0) {
-    std::cerr << "No events with LFHCALRecHits or LFHCALHits found\n";
+  if (n_truth_events == 0) {
+    std::cerr << "No events with LFHCALHits found\n";
     return 1;
   }
 
@@ -273,7 +248,6 @@ int main(int argc, char* argv[]) {
   }
 
   if (n_truth_events > 0) write_truth(output, truth_groups, n_truth_events);
-  if (n_reco_events > 0) write_reco(output, reco_layers, n_reco_events);
 
   std::cout << "\n";
   output.Close();

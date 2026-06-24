@@ -1,6 +1,6 @@
 /*
 
-./build/energy_res -i data/reco_bkg_apr -o plots/performance/energy_res.root
+./build/energy_res -i data/bkg_apr -o plots/performance/energy_res.root
 ./build/energy_res -i data/reco_no_bkg_apr -o plots/performance/energy_res.root
 
 */
