@@ -38,7 +38,7 @@ namespace {
 // Constant(s)
 constexpr double MIP_1 = 3.5e-3;
 constexpr double MIP_2 = 7.0e-3;
-constexpr double kCoefficient = 0.3;
+constexpr double kCoefficient = 0.5;
 const lo::ThresholdsByLayer kThresholdsGeV = {
     kCoefficient * MIP_1,
     kCoefficient * MIP_1,

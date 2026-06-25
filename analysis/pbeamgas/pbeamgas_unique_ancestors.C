@@ -35,8 +35,7 @@ std::vector<std::string> find_root_files(const std::string& input_dir) {
 }
 
 bool is_pbeamgas(int status) {
-  const int offset = status % 1000;
-  return status >= 6001 && status < 7000 && !(offset >= 5 && offset <= 10);
+  return status >= 6000 && status < 7000;
 }
 
 // Create a hash for a MCParticle based on its PDG, generatorStatus, 4-vector, and vertex.

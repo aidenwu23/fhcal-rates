@@ -36,7 +36,7 @@ constexpr int kNLayers = 7;
 using ThresholdsByLayer = std::array<double, kNLayers>;
 constexpr double MIP_1 = 3.5e-3;
 constexpr double MIP_2 = 7.0e-3;
-constexpr double kCoefficient = 0.3;
+constexpr double kCoefficient = 0.5;
 const ThresholdsByLayer kThresholdsGeV = {
     kCoefficient * MIP_1,
     kCoefficient * MIP_1,

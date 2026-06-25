@@ -50,7 +50,6 @@ struct OriginInfo {
 };
 
 const std::vector<OriginInfo> kOrigins = {
-    {"null", kGray + 1},
     {"DIS", kBlack},
     {"synrad", kRed + 1},
     {"eBrem", kBlue + 1},
@@ -60,6 +59,7 @@ const std::vector<OriginInfo> kOrigins = {
     {"other", kGray + 2},
 };
 
+/*
 int plot_origin_index(int generator_status) {
   if (generator_status == 0) return 0;
   if (generator_status >= 1 && generator_status < 1000) return 1;
@@ -70,6 +70,7 @@ int plot_origin_index(int generator_status) {
   if (generator_status >= 6000 && generator_status < 7000) return 6;
   return 7;
 }
+*/
 
 // ----------------------------- handle CLI inputs -----------------------------
 struct Args {
@@ -279,20 +280,22 @@ int main(int argc, char* argv[]) {
 
           // generator status | origin type | contribution origin
           // ----------------------------------------------------
-          //   0, 2000, 3000, 4000, 5000, 6000 | null-like | 0
-          //   [1,1000)                        | DIS       | 1
-          //   [2001,3000)                     | synrad    | 2
-          //   [3001,4000)                     | eBrem     | 3
-          //   [4001,5000)                     | eTouschek | 4
-          //   [5001,6000)                     | eCoulomb  | 5
-          //   [6001,7000)                     | pBeamGas  | 6
-          //   [1000,2000) or >=7000           | other     | 7
+          // Even null-like entries such as 0, 2000, 3000, ... are kept in their
+          // broad source family because those shower byproducts can still contribute.
+          //   [0,1000)       | DIS       | 0
+          //   [2000,3000)    | synrad    | 1
+          //   [3000,4000)    | eBrem     | 2
+          //   [4000,5000)    | eTouschek | 3
+          //   [5000,6000)    | eCoulomb  | 4
+          //   [6000,7000)    | pBeamGas  | 5
+          //   others         | other     | 6
 
-          const int contribution_origin = plot_origin_index(generator_status);
+          const int contribution_origin = br::origin_index(generator_status);
           const double contribution_energy = contribution.getEnergy();
 
           status.Fill(generator_status);
           if (contribution_energy <= 0.0) continue;
+          if (contribution_origin < 0) continue;
 
           // Fill the corresponding energy entry for this generatorStatus family.
           // ex. if generator status is from DIS, accumulate element 0.
