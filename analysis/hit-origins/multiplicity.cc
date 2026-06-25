@@ -130,7 +130,8 @@ int main(int argc, char* argv[]) {
         // Loop contributions and insert their ObjectID + generatorStatus family into unordered sets.
         for (const auto& contribution : hit.getContributions()) {
           unique_contributors.insert(object_key(contribution.getParticle().getObjectID()));
-          unique_families.insert(br::origin_index(contribution.getParticle().getGeneratorStatus()));
+          const int origin = br::origin_index(contribution.getParticle().getGeneratorStatus());
+          if (origin >= 0) unique_families.insert(origin);
         }
 
         // Size of each unordered set = number of unique elements.

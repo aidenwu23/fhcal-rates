@@ -50,6 +50,7 @@ struct OriginInfo {
 };
 
 const std::vector<OriginInfo> kOrigins = {
+    {"null", kGray + 1},
     {"DIS", kBlack},
     {"synrad", kRed + 1},
     {"eBrem", kBlue + 1},
@@ -58,6 +59,17 @@ const std::vector<OriginInfo> kOrigins = {
     {"pBeamGas", kOrange + 7},
     {"other", kGray + 2},
 };
+
+int plot_origin_index(int generator_status) {
+  if (generator_status == 0) return 0;
+  if (generator_status >= 1 && generator_status < 1000) return 1;
+  if (generator_status >= 2000 && generator_status < 3000) return 2;
+  if (generator_status >= 3000 && generator_status < 4000) return 3;
+  if (generator_status >= 4000 && generator_status < 5000) return 4;
+  if (generator_status >= 5000 && generator_status < 6000) return 5;
+  if (generator_status >= 6000 && generator_status < 7000) return 6;
+  return 7;
+}
 
 // ----------------------------- handle CLI inputs -----------------------------
 struct Args {
@@ -267,15 +279,16 @@ int main(int argc, char* argv[]) {
 
           // generator status | origin type | contribution origin
           // ----------------------------------------------------
-          //   [1,1000)       |   DIS       |         0
-          //   [2000,3000)    |   synrad    |         1
-          //   [3000,4000)    |   eBrem     |         2
-          //   [4000,5000)    |   eTouschek |         3
-          //   [5000,6000)    |   eCoulomb  |         4
-          //   [6000,7000)    |   pBeamGas  |         5
-          //   others         |   other     |         6
+          //   0, 2000, 3000, 4000, 5000, 6000 | null-like | 0
+          //   [1,1000)                        | DIS       | 1
+          //   [2001,3000)                     | synrad    | 2
+          //   [3001,4000)                     | eBrem     | 3
+          //   [4001,5000)                     | eTouschek | 4
+          //   [5001,6000)                     | eCoulomb  | 5
+          //   [6001,7000)                     | pBeamGas  | 6
+          //   [1000,2000) or >=7000           | other     | 7
 
-          const int contribution_origin = br::origin_index(generator_status);
+          const int contribution_origin = plot_origin_index(generator_status);
           const double contribution_energy = contribution.getEnergy();
 
           status.Fill(generator_status);

@@ -182,6 +182,7 @@ int main(int argc, char* argv[]) {
       const auto& particles = frame.get<edm4hep::MCParticleCollection>(kMCParticleCollection);
       for (const auto& particle : particles) {
         const int origin = br::origin_index(particle.getGeneratorStatus());
+        if (origin < 0) continue;
         const double energy = particle.getEnergy();
         h_energy_by_origin[origin]->Fill(energy);
         h_eta_by_origin[origin]->Fill(eta(particle.getMomentum()));

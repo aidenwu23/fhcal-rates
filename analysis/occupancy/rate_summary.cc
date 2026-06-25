@@ -36,7 +36,7 @@ constexpr int kNLayers = 7;
 using ThresholdsByLayer = std::array<double, kNLayers>;
 constexpr double MIP_1 = 3.5e-3;
 constexpr double MIP_2 = 7.0e-3;
-constexpr double kCoefficient = 0.0;
+constexpr double kCoefficient = 0.3;
 const ThresholdsByLayer kThresholdsGeV = {
     kCoefficient * MIP_1,
     kCoefficient * MIP_1,
@@ -57,18 +57,18 @@ struct ColumnStats {
 };
 
 enum class Column : int {
-  DIS = 0,
-  ElectronBeamBackground = 1,
+  AllSources = 0,
+  DIS = 1,
   ProtonBeamBackground = 2,
-  AllSources = 3,
+  OtherBackgrounds = 3,
 };
 
 constexpr int kNColumns = 4;
 const char* kColumnNames[kNColumns] = {
-    "DIS",
-    "electron_beam_background",
-    "proton_beam_background",
     "all_sources",
+    "DIS",
+    "pBeamGas",
+    "synrad_eBrem_eTouschek_eCoulomb_other",
 };
 
 struct EventChannel {
@@ -120,17 +120,6 @@ double percentile_channel_rate_hz(const ColumnStats& stats, double total_time_se
   return static_cast<double>(counts[index]) / total_time_sec;
 }
 
-// Avg rate per channel.
-double mean_channel_rate_hz(const ColumnStats& stats, double total_time_sec) {
-  if (stats.channel_hits.empty() || total_time_sec <= 0.0) return 0.0;
-  return static_cast<double>(stats.total_hits) /
-         (static_cast<double>(stats.channel_hits.size()) * total_time_sec);
-}
-
-// Rate summed across all channels.
-double total_rate_hz(const ColumnStats& stats, double total_time_sec) {
-  return total_time_sec > 0.0 ? static_cast<double>(stats.total_hits) / total_time_sec : 0.0;
-}
 // -----------------------------------------------------------------------------
 
 // Write output csv.
@@ -160,18 +149,6 @@ void write_csv(const fs::path& output_path,
   out << "p99_channel_hz";
   for (int i = 0; i < kNColumns; ++i) {
     out << ',' << percentile_channel_rate_hz(columns[i], total_time_sec, 99);
-  }
-  out << '\n';
-
-  out << "channel_avg_hz";
-  for (int i = 0; i < kNColumns; ++i) {
-    out << ',' << mean_channel_rate_hz(columns[i], total_time_sec);
-  }
-  out << '\n';
-
-  out << "total_hz";
-  for (int i = 0; i < kNColumns; ++i) {
-    out << ',' << total_rate_hz(columns[i], total_time_sec);
   }
   out << '\n';
 }
@@ -232,11 +209,11 @@ int main(int argc, char* argv[]) {
           const auto source = br::classify_background_class(
               contribution.getParticle().getGeneratorStatus());
           if (source == br::BackgroundClass::DIS) {
-            event_channel.source_present[static_cast<int>(Column::DIS)] = true;
-          } else if (source == br::BackgroundClass::ElectronBeamBackground) {
-            event_channel.source_present[static_cast<int>(Column::ElectronBeamBackground)] = true;
+            event_channel.source_present[0] = true;
           } else if (source == br::BackgroundClass::ProtonBeamBackground) {
-            event_channel.source_present[static_cast<int>(Column::ProtonBeamBackground)] = true;
+            event_channel.source_present[1] = true;
+          } else {
+            event_channel.source_present[2] = true;
           }
         }
       }
@@ -246,14 +223,20 @@ int main(int argc, char* argv[]) {
         if (layer < 0 || layer >= kNLayers) continue;
         // Apply summed channel threshold.
         if (event_channel.energy_gev <= thresholds_geV[layer]) continue;
-        for (int source_index = 0; source_index < 3; ++source_index) {
-          if (!event_channel.source_present[source_index]) continue;
-          ++columns[source_index].channel_hits[channel_id];
-          ++columns[source_index].total_hits;
-        }
-
         ++columns[static_cast<int>(Column::AllSources)].channel_hits[channel_id];
         ++columns[static_cast<int>(Column::AllSources)].total_hits;
+        if (event_channel.source_present[0]) {
+          ++columns[static_cast<int>(Column::DIS)].channel_hits[channel_id];
+          ++columns[static_cast<int>(Column::DIS)].total_hits;
+        }
+        if (event_channel.source_present[1]) {
+          ++columns[static_cast<int>(Column::ProtonBeamBackground)].channel_hits[channel_id];
+          ++columns[static_cast<int>(Column::ProtonBeamBackground)].total_hits;
+        }
+        if (event_channel.source_present[2]) {
+          ++columns[static_cast<int>(Column::OtherBackgrounds)].channel_hits[channel_id];
+          ++columns[static_cast<int>(Column::OtherBackgrounds)].total_hits;
+        }
       }
     }
   }

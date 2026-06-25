@@ -125,6 +125,7 @@ void draw_overlay(TFile& output,
                  1000,
                  800);
   canvas.SetLogy();
+  canvas.SetGrid();
 
   // Find the tallest point first so every layer fits on the same frame.
   double max_y = 0.0;
@@ -135,7 +136,7 @@ void draw_overlay(TFile& output,
   }
   if (max_y <= 0.0) max_y = 1.0;
 
-  auto* frame = canvas.DrawFrame(kCoefficients.front(), 1.0, kCoefficients.back(), 1.25 * max_y);
+  auto* frame = canvas.DrawFrame(kCoefficients.front(), 200.0, kCoefficients.back(), 1.0e5);
   frame->SetTitle(percentile_title(percentile).c_str());
   frame->GetXaxis()->SetTitle("MIP coefficient");
   frame->GetYaxis()->SetTitle("rate [Hz/channel]");
