@@ -13,8 +13,10 @@
 #include <unordered_set>
 #include <vector>
 
-namespace br::occupancy {
-
+namespace rates::channel_occupancy {
+// ----------------------------------------------------------------------------------
+// Constants and structs
+// ----------------------------------------------------------------------------------
 constexpr int kNLayers = 7;
 constexpr int kAllLayersIndex = kNLayers;
 constexpr double kEventWindowSec = 2e-6;
@@ -34,7 +36,7 @@ struct ChannelStats {
 };
 
 struct LayerAccum {
-  std::unordered_map<br::LFHCALChannelID, ChannelStats, br::LFHCALChannelIDHash> channels;
+  std::unordered_map<rates::LFHCALChannelID, ChannelStats, rates::LFHCALChannelIDHash> channels;
   TH1D* h_hits_evt = nullptr;
 };
 
@@ -43,9 +45,12 @@ struct AxisEdges2D {
   std::vector<double> y_edges;
 };
 
+// ----------------------------------------------------------------------------------
+// Helpers
+// ----------------------------------------------------------------------------------
 void draw_and_write(TDirectory* canvas_dir, TH1* hist, const char* canvas_name, bool logz = false, bool logy = false);
 std::vector<double> make_axis_edges(const std::set<double>& coords);
 AxisEdges2D make_layer_axis_edges(const LayerAccum& layer_accum);
 void init_layer_accumulations(std::vector<LayerAccum>& layers);
 
-}  // namespace br::occupancy
+}  // namespace rates::channel_occupancy

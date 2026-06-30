@@ -1,6 +1,6 @@
 /*
 
-./build/occupancy -i data/bkg_apr -o plots/occupancy/occupancy.root
+./build/channel_occupancy -i data/bkg_apr -o plots/channel_occupancy/channel_occupancy.root
 
 */
 
@@ -28,11 +28,13 @@ namespace fs = std::filesystem;
 
 namespace {
 
-// Constant(s)
+// ----------------------------------------------------------------------------------
+// Constants and structs
+// ----------------------------------------------------------------------------------
 constexpr double MIP_1 = 3.5e-3;
 constexpr double MIP_2 = 7.0e-3;
 constexpr double kCoefficient = 0.5;
-const br::occupancy::ThresholdsByLayer kThresholdsGeV = {
+const rates::channel_occupancy::ThresholdsByLayer kThresholdsGeV = {
     kCoefficient * MIP_1,
     kCoefficient * MIP_1,
     kCoefficient * MIP_2,
@@ -46,9 +48,11 @@ struct Args {
   std::string output_file;
 };
 
+// ----------------------------------------------------------------------------------
+// CLI
+// ----------------------------------------------------------------------------------
 void usage(const char* argv0);
 
-// Parse CLI arguments.
 Args parse_args(int argc, char* argv[]) {
   Args args;
 
@@ -76,13 +80,15 @@ void usage(const char* argv0) {
   std::cerr << "Usage: " << argv0 << " -i INPUT_DIR -o OUTPUT.root\n";
 }
 
-// Write all plots for one readout z layer.
+// ----------------------------------------------------------------------------------
+// Plot helper(s)
+// ----------------------------------------------------------------------------------
 void write_layer_directory(TDirectory* parent,
-                           const br::occupancy::LayerAccum& layer_accum,
+                           const rates::channel_occupancy::LayerAccum& layer_accum,
                            int layer,
                            std::uint64_t n_events,
-                           const std::optional<br::occupancy::AxisEdges2D>& reference_edges = std::nullopt) {
-  const std::string dir_name = layer == br::occupancy::kAllLayersIndex ? "sum_layers" : std::string("layer") + std::to_string(layer);
+                           const std::optional<rates::channel_occupancy::AxisEdges2D>& reference_edges = std::nullopt) {
+  const std::string dir_name = layer == rates::channel_occupancy::kAllLayersIndex ? "sum_layers" : std::string("layer") + std::to_string(layer);
   auto* dir = parent->mkdir(dir_name.c_str());
   dir->cd();
 
@@ -98,28 +104,28 @@ void write_layer_directory(TDirectory* parent,
     (void)channel_id;
     rmax = std::max(rmax, stats.r());
   }
-  const br::occupancy::AxisEdges2D axis_edges =
-      reference_edges.has_value() ? *reference_edges : br::occupancy::make_layer_axis_edges(layer_accum);
+  const rates::channel_occupancy::AxisEdges2D axis_edges =
+      reference_edges.has_value() ? *reference_edges : rates::channel_occupancy::make_layer_axis_edges(layer_accum);
   const auto& x_edges = axis_edges.x_edges;
   const auto& y_edges = axis_edges.y_edges;
 
   auto* h_avg = new TH2D(
       "h_avg",
-      (layer == br::occupancy::kAllLayersIndex ? std::string("Summed layers;x [mm];y [mm];avg hits/event/channel")
+      (layer == rates::channel_occupancy::kAllLayersIndex ? std::string("Summed layers;x [mm];y [mm];avg hits/event/channel")
         : std::string("Layer ") + std::to_string(layer) + ";x [mm];y [mm];avg hits/event/channel").c_str(),
       static_cast<int>(x_edges.size()) - 1, x_edges.data(),
       static_cast<int>(y_edges.size()) - 1, y_edges.data());
 
   auto* h_rate = new TH2D(
       "h_rate",
-      (layer == br::occupancy::kAllLayersIndex ? std::string("Summed layers;x [mm];y [mm];rate [Hz/channel]")
+      (layer == rates::channel_occupancy::kAllLayersIndex ? std::string("Summed layers;x [mm];y [mm];rate [Hz/channel]")
         : std::string("Layer ") + std::to_string(layer) + ";x [mm];y [mm];rate [Hz/channel]").c_str(),
       static_cast<int>(x_edges.size()) - 1, x_edges.data(),
       static_cast<int>(y_edges.size()) - 1, y_edges.data());
 
   auto* h_avg_r = new TH1D(
       "h_avg_r",
-      (layer == br::occupancy::kAllLayersIndex ? std::string("Summed layers;R [mm];avg hits/event")
+      (layer == rates::channel_occupancy::kAllLayersIndex ? std::string("Summed layers;R [mm];avg hits/event")
         : std::string("Layer ") + std::to_string(layer) + ";R [mm];avg hits/event").c_str(),
       100, 0.0, std::max(1.0, 1.05 * rmax));
 
@@ -129,7 +135,7 @@ void write_layer_directory(TDirectory* parent,
   for (const auto& [channel_id, stats] : layer_accum.channels) {
     (void)channel_id;
     const double avg = static_cast<double>(stats.total_hits) / static_cast<double>(n_events);
-    const double rate = static_cast<double>(stats.total_hits) / (static_cast<double>(n_events) * br::occupancy::kEventWindowSec);
+    const double rate = static_cast<double>(stats.total_hits) / (static_cast<double>(n_events) * rates::channel_occupancy::kEventWindowSec);
     h_avg->Fill(stats.x_mm, stats.y_mm, avg);
     h_rate->Fill(stats.x_mm, stats.y_mm, rate);
     h_avg_r->Fill(stats.r(), avg);
@@ -149,34 +155,34 @@ void write_layer_directory(TDirectory* parent,
   h_nchan_r->Write();
   layer_accum.h_hits_evt->Write();
 
-  br::occupancy::draw_and_write(dir, h_avg, "c_avg", true, false);
-  br::occupancy::draw_and_write(dir, h_rate, "c_rate", true, false);
-  br::occupancy::draw_and_write(dir, h_avg_r, "c_avg_r", false, false);
-  br::occupancy::draw_and_write(dir, layer_accum.h_hits_evt, "c_hits_evt", false, true);
+  rates::channel_occupancy::draw_and_write(dir, h_avg, "c_avg", true, false);
+  rates::channel_occupancy::draw_and_write(dir, h_rate, "c_rate", true, false);
+  rates::channel_occupancy::draw_and_write(dir, h_avg_r, "c_avg_r", false, false);
+  rates::channel_occupancy::draw_and_write(dir, layer_accum.h_hits_evt, "c_hits_evt", false, true);
 }
 
 // Truth has access to contributions, so write one for each origin type in addition to one for every layer.
 void write_truth(TFile& output,
-                 const std::vector<br::occupancy::TruthOccupancyGroup>& truth_groups,
+                 const std::vector<rates::channel_occupancy::TruthOccupancyGroup>& truth_groups,
                  std::uint64_t n_events) {
 
   // Use DIS for bin edges since DIS typically has lots of stats.
-  std::vector<std::optional<br::occupancy::AxisEdges2D>> dis_reference_edges(br::occupancy::kNLayers + 1);
+  std::vector<std::optional<rates::channel_occupancy::AxisEdges2D>> dis_reference_edges(rates::channel_occupancy::kNLayers + 1);
   const auto dis_it = std::find_if(
       truth_groups.begin(),
       truth_groups.end(),
-      [](const br::occupancy::TruthOccupancyGroup& group) { return group.label == "DIS"; });
+      [](const rates::channel_occupancy::TruthOccupancyGroup& group) { return group.label == "DIS"; });
   if (dis_it != truth_groups.end()) {
-    for (int layer = 0; layer <= br::occupancy::kNLayers; ++layer) {
+    for (int layer = 0; layer <= rates::channel_occupancy::kNLayers; ++layer) {
       if (!dis_it->layers[layer].channels.empty()) {
-        dis_reference_edges[layer] = br::occupancy::make_layer_axis_edges(dis_it->layers[layer]);
+        dis_reference_edges[layer] = rates::channel_occupancy::make_layer_axis_edges(dis_it->layers[layer]);
       }
     }
   }
 
   for (const auto& truth_group : truth_groups) {
     auto* parent = output.mkdir(truth_group.label.c_str());
-    for (int layer = 0; layer <= br::occupancy::kNLayers; ++layer) {
+    for (int layer = 0; layer <= rates::channel_occupancy::kNLayers; ++layer) {
       write_layer_directory(parent, truth_group.layers[layer], layer, n_events, dis_reference_edges[layer]);
     }
   }
@@ -184,6 +190,9 @@ void write_truth(TFile& output,
 
 }  // namespace
 
+// ----------------------------------------------------------------------------------
+// Main
+// ----------------------------------------------------------------------------------
 int main(int argc, char* argv[]) {
   TH1::AddDirectory(false);
 
@@ -194,9 +203,9 @@ int main(int argc, char* argv[]) {
   const auto& thresholds_geV = kThresholdsGeV;
 
   // Create a decoder for cell IDs.
-  const br::LFHCALCellIDDecoder decoder;
+  const rates::LFHCALCellIDDecoder decoder;
   // Find input files.
-  const auto files = br::find_root_files(input_dir);
+  const auto files = rates::find_root_files(input_dir);
   if (files.empty()) {
     std::cerr << "No ROOT files found in " << input_dir << "\n";
     return 1;
@@ -207,12 +216,12 @@ int main(int argc, char* argv[]) {
   if (output_path.has_parent_path()) fs::create_directories(output_path.parent_path());
 
   // NOTE: reco unavailable for now due to some timing issues with background.
-  std::vector<br::occupancy::TruthOccupancyGroup> truth_groups;
-  br::occupancy::init_truth_groups(truth_groups);
+  std::vector<rates::channel_occupancy::TruthOccupancyGroup> truth_groups;
+  rates::channel_occupancy::init_truth_groups(truth_groups);
 
   std::uint64_t n_truth_events = 0;
 
-  br::FileProgress progress(files.size(), std::cerr);
+  rates::FileProgress progress(files.size(), std::cerr);
 
   // Loop over all files in the input directory.
   for (const auto& path : files) {
@@ -232,7 +241,7 @@ int main(int argc, char* argv[]) {
 
       podio::Frame frame(std::move(data));
 
-      if (br::occupancy::process_truth_event(frame, decoder, thresholds_geV, truth_groups)) ++n_truth_events;
+      if (rates::channel_occupancy::process_truth_event(frame, decoder, thresholds_geV, truth_groups)) ++n_truth_events;
     }
   }
 

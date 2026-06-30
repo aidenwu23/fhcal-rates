@@ -182,7 +182,7 @@ int main(int argc, char* argv[]) {
   const auto& output_file = args.output_file;
 
   // Find input files.
-  const auto files = br::find_root_files(input_dir);
+  const auto files = rates::find_root_files(input_dir);
   if (files.empty()) {
     std::cerr << "No ROOT files found in " << input_dir << "\n";
     return 1;
@@ -199,8 +199,8 @@ int main(int argc, char* argv[]) {
   }
 
   // Make a decoder.
-  const br::LFHCALCellIDDecoder decoder;
-  const auto edges = br::log_edges(260, 1e-10, 10.0); // Log edges for nicer display.
+  const rates::LFHCALCellIDDecoder decoder;
+  const auto edges = rates::log_edges(260, 1e-10, 10.0); // Log edges for nicer display.
 
   // Used for styling histograms.
   std::vector<const char*> origin_labels;
@@ -216,23 +216,23 @@ int main(int argc, char* argv[]) {
   }
 
   // Make a histogram for all 7 readout layers.
-  std::vector<br::origins::LayerEdepHists> edep_layers;
+  std::vector<rates::origins::LayerEdepHists> edep_layers;
   edep_layers.reserve(kNReadoutLayers);
   for (int layer = 0; layer < kNReadoutLayers; ++layer) {
     // For each layer, make a histogram for all generatorStatus families.
-    edep_layers.push_back(br::origins::make_edep_hists(origin_labels, origin_colors, layer, 260, edges.data()));
+    edep_layers.push_back(rates::origins::make_edep_hists(origin_labels, origin_colors, layer, 260, edges.data()));
   }
 
   // Also make an inclusive version for all 7.
-  auto edep_hit = br::origins::make_summed_edep_hists(origin_labels, origin_colors, 260, edges.data());
+  auto edep_hit = rates::origins::make_summed_edep_hists(origin_labels, origin_colors, 260, edges.data());
 
   // Make a histogram for eta hists.
-  std::vector<br::origins::ThresholdEtaHists> eta_hists;
+  std::vector<rates::origins::ThresholdEtaHists> eta_hists;
   eta_hists.reserve(kEtaThresholdsGeV.size());
 
   // One of the thresholds is 0 so its just <no threshold, threshold>.
   for (double threshold_geV : kEtaThresholdsGeV) { 
-    eta_hists.push_back(br::origins::make_eta_hists(origin_labels, origin_colors, threshold_geV));
+    eta_hists.push_back(rates::origins::make_eta_hists(origin_labels, origin_colors, threshold_geV));
   }
 
   TH1I status("h_status", "Raw generatorStatus;generatorStatus;Contributions", 8000, -1000, 7000);
@@ -240,7 +240,7 @@ int main(int argc, char* argv[]) {
   std::vector<std::uint64_t> origin_hit_counts(kOrigins.size(), 0);
   std::uint64_t n_events = 0;
 
-  br::FileProgress progress(files.size(), std::cerr);
+  rates::FileProgress progress(files.size(), std::cerr);
 
   // Loop through files.
   for (const auto& path : files) {
@@ -260,7 +260,7 @@ int main(int argc, char* argv[]) {
       }
 
       podio::Frame frame(std::move(data));
-      if (!br::has_collection(frame, kHitCollection)) {
+      if (!rates::has_collection(frame, kHitCollection)) {
         continue;
       }
       ++n_events;
@@ -290,7 +290,7 @@ int main(int argc, char* argv[]) {
           //   [6000,7000)    | pBeamGas  | 5
           //   others         | other     | 6
 
-          const int contribution_origin = br::origin_index(generator_status);
+          const int contribution_origin = rates::origin_index(generator_status);
           const double contribution_energy = contribution.getEnergy();
 
           status.Fill(generator_status);
@@ -312,11 +312,11 @@ int main(int argc, char* argv[]) {
           ++origin_hit_counts[origin];
 
           if (layer >= 0 && layer < kNReadoutLayers) {
-            br::origins::fill_edep(edep_layers[layer], static_cast<int>(origin), origin_energy);
+            rates::origins::fill_edep(edep_layers[layer], static_cast<int>(origin), origin_energy);
           }
 
           for (auto& eta_hists_for_threshold : eta_hists) {
-            br::origins::fill_eta(eta_hists_for_threshold, static_cast<int>(origin), hit.getPosition(), origin_energy);
+            rates::origins::fill_eta(eta_hists_for_threshold, static_cast<int>(origin), hit.getPosition(), origin_energy);
           }
         }
       }
@@ -329,7 +329,7 @@ int main(int argc, char* argv[]) {
   }
 
   for (const auto& layer_hists : edep_layers) {
-    br::origins::sum_edep_into(edep_hit, layer_hists);
+    rates::origins::sum_edep_into(edep_hit, layer_hists);
   }
 
   draw_overlay(output, "Edep_hit", "c_edep_hit", "LFHCAL hit origin;E_{dep} [GeV];Hits", edep_hit, true, true);

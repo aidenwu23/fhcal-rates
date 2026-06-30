@@ -5,7 +5,7 @@
 #include <string>
 #include <vector>
 
-namespace br::origins {
+namespace rates::origins {
 
 struct LayerEdepHists {
   int layer = -1;
@@ -28,4 +28,4 @@ void sum_edep_into(std::vector<TH1D*>& summed_hists, const LayerEdepHists& layer
 
 void fill_edep(LayerEdepHists& hists, int origin_index, double energy);
 
-}  // namespace br::origins
+}  // namespace rates::origins

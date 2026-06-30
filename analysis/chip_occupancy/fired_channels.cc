@@ -1,10 +1,11 @@
 /*
 
-./build/energy_spectrum -i data/bkg_apr -o plots/occupancy/energy_spectrum.root
+./build/fired_channels -i data/bkg_apr -o plots/chip_occupancy/fired_channels.root
 
 */
 
 #include <TCanvas.h>
+#include <TDirectory.h>
 #include <TFile.h>
 #include <TH1.h>
 #include <TH1D.h>
@@ -28,21 +29,29 @@
 namespace fs = std::filesystem;
 
 namespace {
-
+// ----------------------------------------------------------------------------------
+// Constants and structs
+// ----------------------------------------------------------------------------------
 constexpr const char* kHitCollection = "LFHCALHits";
 constexpr int kNReadoutLayers = 7;
+constexpr double kCoefficient = 0.5;
+
+struct EventChip {
+  // channel_energy[channel]: summed channel signal inside this chip for one event.
+  std::unordered_map<rates::LFHCALChannelID, double, rates::LFHCALChannelIDHash> channel_energy;
+};
 
 // ----------------------------------------------------------------------------------
-// CLI handling.
+// CLI
 // ----------------------------------------------------------------------------------
+void usage(const char* argv0) {
+  std::cerr << "Usage: " << argv0 << " -i INPUT_DIR -o OUTPUT.root\n";
+}
+
 struct Args {
   std::string input_dir;
   std::string output_file;
 };
-
-void usage(const char* argv0) {
-  std::cerr << "Usage: " << argv0 << " -i INPUT_DIR -o OUTPUT.root\n";
-}
 
 Args parse_args(int argc, char* argv[]) {
   Args args;
@@ -68,10 +77,11 @@ Args parse_args(int argc, char* argv[]) {
 }
 
 // ----------------------------------------------------------------------------------
-void draw_and_write(TDirectory* dir, TH1* hist, const char* canvas_name, bool logx = false, bool logy = false) {
+// Plot helper(s)
+// ----------------------------------------------------------------------------------
+void draw_and_write(TDirectory* dir, TH1* hist, const char* canvas_name, bool logy = false) {
   dir->cd();
   TCanvas canvas(canvas_name, hist->GetTitle(), 1000, 800);
-  if (logx) canvas.SetLogx();
   if (logy) canvas.SetLogy();
   hist->SetStats(false);
   hist->Draw("hist");
@@ -80,11 +90,15 @@ void draw_and_write(TDirectory* dir, TH1* hist, const char* canvas_name, bool lo
 
 }  // namespace
 
+// ----------------------------------------------------------------------------------
+// Main
+// ----------------------------------------------------------------------------------
 int main(int argc, char* argv[]) {
   TH1::AddDirectory(false);
 
+  // Parse inputs and make sure there is data to process.
   const auto args = parse_args(argc, argv);
-  const auto files = br::find_root_files(args.input_dir);
+  const auto files = rates::find_root_files(args.input_dir);
   if (files.empty()) {
     std::cerr << "No ROOT files found in " << args.input_dir << "\n";
     return 1;
@@ -93,61 +107,68 @@ int main(int argc, char* argv[]) {
   fs::path output_path = args.output_file;
   if (output_path.has_parent_path()) fs::create_directories(output_path.parent_path());
 
-  const auto energy_edges = br::log_edges(240, 1e-6, 10.0);
-  std::array<TH1D*, kNReadoutLayers> h_channel_energy{};
+  // Histogram of how many channels fire in one chip per event.
+  TH1D h_active_channels(
+      "h_active_channels",
+      "Fired channels per event per chip, 0.5 MIP threshold;fired channels/event/chip;Chips",
+      28,
+      0.0,
+      28.0);
 
-  for (int layer = 0; layer < kNReadoutLayers; ++layer) {
-    const std::string energy_name = "h_channel_energy_layer" + std::to_string(layer);
-    const std::string energy_title =
-        "LFHCAL channel energy per event, readout layer " + std::to_string(layer) +
-        ";E_{dep}^{channel} [GeV];Channels";
-    h_channel_energy[layer] = new TH1D(energy_name.c_str(), energy_title.c_str(), 240, energy_edges.data());
-  }
-
-  const br::LFHCALCellIDDecoder decoder;
+  const rates::LFHCALCellIDDecoder decoder;
   std::uint64_t n_events = 0;
-  br::FileProgress progress(files.size(), std::cerr);
+  rates::FileProgress progress(files.size(), std::cerr);
 
+  // Loop over all files.
   for (const auto& path : files) {
     progress.tick();
     podio::ROOTReader reader;
     reader.openFile(path.string());
     const std::size_t total_events = reader.getEntries("events");
 
-    // Histogrammed per-event? dunno if this works.
-    // How to categorize a hit as being relevant to a channel other than being in the same event?
-    // Two hits can come from the same channel but be very far away in time.
+    // Per file, loop over all events.
     for (std::size_t event_index = 0; event_index < total_events; ++event_index) {
       auto data = reader.readEntry("events", event_index);
       if (!data) continue;
 
       podio::Frame frame(std::move(data));
-      if (!br::has_collection(frame, kHitCollection)) continue;
+      if (!rates::has_collection(frame, kHitCollection)) continue;
       ++n_events;
 
-      std::array<std::unordered_map<br::LFHCALChannelID, double, br::LFHCALChannelIDHash>, kNReadoutLayers> channel_energy_by_layer;
+      // For this event, group all channel sums under their parent chip.
+      std::unordered_map<rates::LFHCALChipID, EventChip, rates::LFHCALChipIDHash> event_chips;
       const auto& hits = frame.get<edm4hep::SimCalorimeterHitCollection>(kHitCollection);
 
-      // Loop hits.
+      // Loop hits and fold them into per-event, per-chip channel sums.
       for (const auto& hit : hits) {
         const auto cell_id = static_cast<std::uint64_t>(hit.getCellID());
         if (decoder.is_passive(cell_id)) continue;
 
         const auto channel = decoder.channel(cell_id);
         if (channel.rlayerz < 0 || channel.rlayerz >= kNReadoutLayers) continue;
-
-        // Increment the corresponding channel's energy in the corresponding readout layer.
-        channel_energy_by_layer[channel.rlayerz][channel] += hit.getEnergy();
+        auto& event_chip = event_chips[decoder.decode_chip(cell_id)];
+        event_chip.channel_energy[channel] += hit.getEnergy();
       }
 
-      // After accumualting all energy in each channel for this event, fill the corresponding hists.
-      for (int layer = 0; layer < kNReadoutLayers; ++layer) {
+      // active_counts[chip]: how many distinct channels passed threshold in this chip this event.
+      std::unordered_map<rates::LFHCALChipID, int, rates::LFHCALChipIDHash> active_counts;
 
-        // Loop all filled channels.
-        for (const auto& [channel, energy] : channel_energy_by_layer[layer]) {
-          (void)channel;
-          h_channel_energy[layer]->Fill(energy); // Fill corresponding layer.
+      // This chip grouping corresponds to one hardware chip.
+      for (const auto& [chip, event_chip] : event_chips) {
+        int active_count = 0;
+
+        // Count distinct fired channels in this chip after the threshold.
+        for (const auto& [channel, energy_gev] : event_chip.channel_energy) {
+          if (energy_gev > kCoefficient * rates::mip_energy_gev(channel.rlayerz)) ++active_count;
         }
+
+        active_counts[chip] = active_count;
+      }
+
+      // Fill one histogram entry per chip seen in this event.
+      for (const auto& [chip, count] : active_counts) {
+        (void)chip;
+        h_active_channels.Fill(count);
       }
     }
   }
@@ -163,16 +184,14 @@ int main(int argc, char* argv[]) {
     return 1;
   }
 
+  // Write raw histograms and matching canvases.
   auto* hist_dir = output.mkdir("hists");
   hist_dir->cd();
-  for (int layer = 0; layer < kNReadoutLayers; ++layer) {
-    h_channel_energy[layer]->Write();
-  }
+  h_active_channels.Write();
 
-  for (int layer = 0; layer < kNReadoutLayers; ++layer) {
-    draw_and_write(&output, h_channel_energy[layer], ("c_layer_" + std::to_string(layer)).c_str(), true, true);
-  }
+  draw_and_write(&output, &h_active_channels, "c_active_channels", true);
 
   std::cout << "\n";
+  output.Close();
   return 0;
 }

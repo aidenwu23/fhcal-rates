@@ -3,10 +3,10 @@ find_package(podio REQUIRED)
 find_package(EDM4HEP REQUIRED)
 find_package(EDM4EIC REQUIRED)
 
-add_executable(occupancy occupancy.cc)
-target_compile_features(occupancy PRIVATE cxx_std_17)
-target_include_directories(occupancy PRIVATE ${CMAKE_SOURCE_DIR}/scripts/include ${CMAKE_CURRENT_SOURCE_DIR}/include)
-target_sources(occupancy PRIVATE
+add_executable(channel_occupancy channel_occupancy.cc)
+target_compile_features(channel_occupancy PRIVATE cxx_std_17)
+target_include_directories(channel_occupancy PRIVATE ${CMAKE_SOURCE_DIR}/scripts/include ${CMAKE_CURRENT_SOURCE_DIR}/include)
+target_sources(channel_occupancy PRIVATE
   ${CMAKE_SOURCE_DIR}/scripts/src/utils.cc
   ${CMAKE_SOURCE_DIR}/scripts/src/decode_cell_id.cc
   ${CMAKE_SOURCE_DIR}/scripts/src/smooth_hists.cc
@@ -25,7 +25,7 @@ if(NOT _edm4eic_targets)
 endif()
 
 target_link_libraries(
-  occupancy
+  channel_occupancy
   PRIVATE
     podio::podio
     podio::podioRootIO
@@ -37,7 +37,7 @@ target_link_libraries(
     ROOT::Graf
     ROOT::Gpad)
 
-install(TARGETS occupancy RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
+install(TARGETS channel_occupancy RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
 
 add_executable(longitudinal_occupancy longitudinal_occupancy.cc)
 target_compile_features(longitudinal_occupancy PRIVATE cxx_std_17)

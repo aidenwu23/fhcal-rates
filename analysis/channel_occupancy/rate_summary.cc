@@ -1,6 +1,6 @@
 /*
 
-./build/rate_summary -i data/bkg_apr -o plots/occupancy/rate_summary.csv
+./build/rate_summary -i data/bkg_apr -o plots/channel_occupancy/rate_summary.csv
 
 */
 
@@ -29,7 +29,9 @@
 namespace fs = std::filesystem;
 
 namespace {
-
+// ----------------------------------------------------------------------------------
+// Constants and structs
+// ----------------------------------------------------------------------------------
 constexpr const char* kHitCollection = "LFHCALHits";
 constexpr double kEventWindowSec = 2e-6;
 constexpr int kNLayers = 7;
@@ -52,7 +54,7 @@ struct Args {
 };
 
 struct ColumnStats {
-  std::unordered_map<br::LFHCALChannelID, std::uint64_t, br::LFHCALChannelIDHash> channel_hits;
+  std::unordered_map<rates::LFHCALChannelID, std::uint64_t, rates::LFHCALChannelIDHash> channel_hits;
   std::uint64_t total_hits = 0;
 };
 
@@ -76,7 +78,9 @@ struct EventChannel {
   std::array<bool, 3> source_present = {false, false, false};
 };
 
-// ----------------------------- handle CLI inputs -----------------------------
+// ----------------------------------------------------------------------------------
+// CLI
+// ----------------------------------------------------------------------------------
 void usage(const char* argv0) {
   std::cerr << "Usage: " << argv0 << " -i INPUT_DIR -o OUTPUT.csv\n";
 }
@@ -104,7 +108,9 @@ Args parse_args(int argc, char* argv[]) {
   return args;
 }
 
-// --------------------------- compute rate numbers ----------------------------
+// ----------------------------------------------------------------------------------
+// Rate summary helpers
+// ----------------------------------------------------------------------------------
 double percentile_channel_rate_hz(const ColumnStats& stats, double total_time_sec, std::size_t percentile) {
   if (stats.channel_hits.empty() || total_time_sec <= 0.0) return 0.0;
 
@@ -120,9 +126,9 @@ double percentile_channel_rate_hz(const ColumnStats& stats, double total_time_se
   return static_cast<double>(counts[index]) / total_time_sec;
 }
 
-// -----------------------------------------------------------------------------
-
-// Write output csv.
+// ----------------------------------------------------------------------------------
+// Output
+// ----------------------------------------------------------------------------------
 void write_csv(const fs::path& output_path,
                const std::vector<ColumnStats>& columns,
                std::uint64_t n_events) {
@@ -155,11 +161,14 @@ void write_csv(const fs::path& output_path,
 
 }  // namespace
 
+// ----------------------------------------------------------------------------------
+// Main
+// ----------------------------------------------------------------------------------
 int main(int argc, char* argv[]) {
   const auto args = parse_args(argc, argv);
-  const auto files = br::find_root_files(args.input_dir);
+  const auto files = rates::find_root_files(args.input_dir);
   const auto& thresholds_geV = kThresholdsGeV;
-  const br::LFHCALCellIDDecoder decoder;
+  const rates::LFHCALCellIDDecoder decoder;
   if (files.empty()) {
     std::cerr << "No ROOT files found in " << args.input_dir << "\n";
     return 1;
@@ -168,7 +177,7 @@ int main(int argc, char* argv[]) {
   std::vector<ColumnStats> columns(kNColumns);
   std::uint64_t n_events = 0;
 
-  br::FileProgress progress(files.size(), std::cerr);
+  rates::FileProgress progress(files.size(), std::cerr);
 
   // Loop through input files.
   for (const auto& path : files) {
@@ -186,13 +195,13 @@ int main(int argc, char* argv[]) {
       if (!data) continue;
 
       podio::Frame frame(std::move(data));
-      if (!br::has_collection(frame, kHitCollection)) continue;
+      if (!rates::has_collection(frame, kHitCollection)) continue;
       ++n_events;
 
       const auto& hits = frame.get<edm4hep::SimCalorimeterHitCollection>(kHitCollection);
 
       // Per-event channel signals before applying the summed channel threshold.
-      std::unordered_map<br::LFHCALChannelID, EventChannel, br::LFHCALChannelIDHash> event_channels;
+      std::unordered_map<rates::LFHCALChannelID, EventChannel, rates::LFHCALChannelIDHash> event_channels;
 
       // Loop hits.
       for (const auto& hit : hits) {
@@ -206,11 +215,11 @@ int main(int argc, char* argv[]) {
         for (const auto& contribution : hit.getContributions()) {
           if (contribution.getEnergy() <= 0.0) continue;
 
-          const auto source = br::classify_background_class(
+          const auto source = rates::classify_background_class(
               contribution.getParticle().getGeneratorStatus());
-          if (source == br::BackgroundClass::DIS) {
+          if (source == rates::BackgroundClass::DIS) {
             event_channel.source_present[0] = true;
-          } else if (source == br::BackgroundClass::ProtonBeamBackground) {
+          } else if (source == rates::BackgroundClass::ProtonBeamBackground) {
             event_channel.source_present[1] = true;
           } else {
             event_channel.source_present[2] = true;

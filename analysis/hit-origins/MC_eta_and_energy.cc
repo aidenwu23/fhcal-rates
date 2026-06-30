@@ -136,7 +136,7 @@ int main(int argc, char* argv[]) {
   TH1::AddDirectory(false);
 
   const auto args = parse_args(argc, argv);
-  const auto files = br::find_root_files(args.input_dir);
+  const auto files = rates::find_root_files(args.input_dir);
   if (files.empty()) {
     std::cerr << "No ROOT files found in " << args.input_dir << "\n";
     return 1;
@@ -150,7 +150,7 @@ int main(int argc, char* argv[]) {
   h_energy_by_origin.reserve(kOrigins.size());
   h_eta_by_origin.reserve(kOrigins.size());
 
-  const auto energy_edges = br::log_edges(260, 1e-6, 1e3);
+  const auto energy_edges = rates::log_edges(260, 1e-6, 1e3);
   for (const auto& origin : kOrigins) {
     auto* h_energy = new TH1D((std::string("h_mc_energy_") + origin.label).c_str(), "MCParticle origin;E [GeV];Particles", 260, energy_edges.data());
     style(h_energy, origin.color);
@@ -162,7 +162,7 @@ int main(int argc, char* argv[]) {
   }
 
   std::uint64_t n_events = 0;
-  br::FileProgress progress(files.size(), std::cerr);
+  rates::FileProgress progress(files.size(), std::cerr);
 
   for (const auto& path : files) {
     progress.tick();
@@ -176,12 +176,12 @@ int main(int argc, char* argv[]) {
       if (!data) continue;
 
       podio::Frame frame(std::move(data));
-      if (!br::has_collection(frame, kMCParticleCollection)) continue;
+      if (!rates::has_collection(frame, kMCParticleCollection)) continue;
       ++n_events;
 
       const auto& particles = frame.get<edm4hep::MCParticleCollection>(kMCParticleCollection);
       for (const auto& particle : particles) {
-        const int origin = br::origin_index(particle.getGeneratorStatus());
+        const int origin = rates::origin_index(particle.getGeneratorStatus());
         if (origin < 0) continue;
         const double energy = particle.getEnergy();
         h_energy_by_origin[origin]->Fill(energy);

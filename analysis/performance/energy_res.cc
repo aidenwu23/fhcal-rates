@@ -194,7 +194,7 @@ int main(int argc, char* argv[]) {
 
   // Parse args and find reco event files.
   const auto args = parse_args(argc, argv);
-  const auto files = br::find_root_files(args.input_dir);
+  const auto files = rates::find_root_files(args.input_dir);
   if (files.empty()) {
     std::cerr << "No ROOT files found in " << args.input_dir << "\n";
     return 1;
@@ -205,7 +205,7 @@ int main(int argc, char* argv[]) {
   if (output_path.has_parent_path()) fs::create_directories(output_path.parent_path());
 
   // Compute bin edges that's evenly spaced in log scale.
-  const auto truth_edges = br::log_edges(200, args.truth_min_geV, args.truth_max_geV);
+  const auto truth_edges = rates::log_edges(200, args.truth_min_geV, args.truth_max_geV);
 
   // Initialize graphs.
   auto* h_truth_vs_response = new TH2D(
@@ -231,7 +231,7 @@ int main(int argc, char* argv[]) {
   }
 
   Counters counters;
-  br::FileProgress progress(files.size(), std::cerr);
+  rates::FileProgress progress(files.size(), std::cerr);
 
   // Loop thru all input files.
   for (const auto& path : files) {
@@ -247,7 +247,7 @@ int main(int argc, char* argv[]) {
       if (!data) continue;
 
       podio::Frame frame(std::move(data));
-      if (!br::has_collection(frame, kClusterCollection) || !br::has_collection(frame, kClusterAssocCollection)) {
+      if (!rates::has_collection(frame, kClusterCollection) || !rates::has_collection(frame, kClusterAssocCollection)) {
         continue;
       }
 

@@ -7,7 +7,7 @@
 #include <string>
 #include <vector>
 
-namespace br::origins {
+namespace rates::origins {
 
 struct ThresholdEtaHists {
   double threshold_geV = 0.0;
@@ -31,4 +31,4 @@ void fill_eta(ThresholdEtaHists& hists,
               const edm4hep::Vector3f& position,
               double hit_energy);
 
-}  // namespace br::origins
+}  // namespace rates::origins

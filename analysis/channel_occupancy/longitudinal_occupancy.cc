@@ -1,6 +1,6 @@
 /*
 
-./build/longitudinal_occupancy -i data/bkg_apr -o plots/occupancy/longitudinal_occupancy.root
+./build/longitudinal_occupancy -i data/bkg_apr -o plots/channel_occupancy/longitudinal_occupancy.root
 
 */
 
@@ -31,11 +31,13 @@
 #include <vector>
 
 namespace fs = std::filesystem;
-namespace lo = br::occupancy::longitudinal;
+namespace lo = rates::channel_occupancy::longitudinal;
 
 namespace {
 
-// Constant(s)
+// ----------------------------------------------------------------------------------
+// Constants and structs
+// ----------------------------------------------------------------------------------
 constexpr double MIP_1 = 3.5e-3;
 constexpr double MIP_2 = 7.0e-3;
 constexpr double kCoefficient = 0.5;
@@ -59,6 +61,9 @@ struct YBinStats {
   int n_channels = 0;
 };
 
+// ----------------------------------------------------------------------------------
+// CLI
+// ----------------------------------------------------------------------------------
 void usage(const char* argv0) {
   std::cerr << "Usage: " << argv0 << " -i INPUT_DIR -o OUTPUT.root\n";
 }
@@ -86,6 +91,9 @@ Args parse_args(int argc, char* argv[]) {
   return args;
 }
 
+// ----------------------------------------------------------------------------------
+// Plot helper(s)
+// ----------------------------------------------------------------------------------
 void draw_and_write(TDirectory* dir, TH1* hist, const char* canvas_name, bool logz = false, bool logy = false) {
   dir->cd();
   TCanvas canvas(canvas_name, hist->GetTitle(), 1000, 800);
@@ -247,12 +255,15 @@ void write_truth(TFile& output,
 
 }  // namespace
 
+// ----------------------------------------------------------------------------------
+// Main
+// ----------------------------------------------------------------------------------
 int main(int argc, char* argv[]) {
   TH1::AddDirectory(false);
 
   // Parse args and gather input files.
   const auto args = parse_args(argc, argv);
-  const auto files = br::find_root_files(args.input_dir);
+  const auto files = rates::find_root_files(args.input_dir);
   if (files.empty()) {
     std::cerr << "No ROOT files found in " << args.input_dir << "\n";
     return 1;
@@ -262,14 +273,14 @@ int main(int argc, char* argv[]) {
   if (output_path.has_parent_path()) fs::create_directories(output_path.parent_path());
 
   // Create a decoder for cell IDs.
-  const br::LFHCALCellIDDecoder decoder;
+  const rates::LFHCALCellIDDecoder decoder;
 
   // NOTE: reco unavailable for now due to some timing issues with background.
   std::vector<lo::TruthGroup> truth_groups;
   lo::init_truth_groups(truth_groups);
 
   std::uint64_t n_truth_events = 0;
-  br::FileProgress progress(files.size(), std::cerr);
+  rates::FileProgress progress(files.size(), std::cerr);
 
   // Loop over all files in the input directory.
   for (const auto& path : files) {

@@ -6,10 +6,15 @@
 #include <cmath>
 #include <string>
 
-namespace br::occupancy {
-
+namespace rates::channel_occupancy {
+// ----------------------------------------------------------------------------------
+// Struct methods
+// ----------------------------------------------------------------------------------
 double ChannelStats::r() const { return std::hypot(x_mm, y_mm); }
 
+// ----------------------------------------------------------------------------------
+// Helpers
+// ----------------------------------------------------------------------------------
 void draw_and_write(TDirectory* canvas_dir, TH1* hist, const char* canvas_name, bool logz, bool logy) {
   canvas_dir->cd();
   TCanvas canvas(canvas_name, hist->GetTitle(), 1000, 800);
@@ -53,6 +58,9 @@ AxisEdges2D make_layer_axis_edges(const LayerAccum& layer_accum) {
   return AxisEdges2D{make_axis_edges(x_coords), make_axis_edges(y_coords)};
 }
 
+// ----------------------------------------------------------------------------------
+// Initialization
+// ----------------------------------------------------------------------------------
 void init_layer_accumulations(std::vector<LayerAccum>& layers) {
   layers.assign(kNLayers + 1, {});
   for (int layer = 0; layer <= kNLayers; ++layer) {
@@ -64,4 +72,4 @@ void init_layer_accumulations(std::vector<LayerAccum>& layers) {
   }
 }
 
-}  // namespace br::occupancy
+}  // namespace rates::channel_occupancy

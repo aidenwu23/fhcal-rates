@@ -1,0 +1,232 @@
+/*
+
+./build/fired_channels_vs_rate -i data/bkg_apr -o plots/chip_occupancy/fired_channels_vs_rate.root
+
+*/
+
+#include <TCanvas.h>
+#include <TFile.h>
+#include <TGraph.h>
+#include <TH1.h>
+
+#include <podio/Frame.h>
+#include <podio/ROOTReader.h>
+
+#include <edm4hep/SimCalorimeterHitCollection.h>
+
+#include "decode_cell_id.h"
+#include "utils.h"
+
+#include <array>
+#include <cstdint>
+#include <filesystem>
+#include <iostream>
+#include <string>
+#include <string_view>
+#include <unordered_map>
+#include <vector>
+
+namespace fs = std::filesystem;
+
+namespace {
+// ----------------------------------------------------------------------------------
+// Constants and structs
+// ----------------------------------------------------------------------------------
+constexpr const char* kHitCollection = "LFHCALHits";
+constexpr int kNReadoutLayers = 7;
+constexpr double kCoefficient = 0.5;
+constexpr double kEventWindowSec = 2e-6;
+
+struct ChipStats {
+  std::uint64_t chip_passes = 0;
+  std::uint64_t total_active_channels = 0;
+};
+
+struct EventChip {
+  std::unordered_map<rates::LFHCALChannelID, double, rates::LFHCALChannelIDHash> channel_energy;
+};
+
+// ----------------------------------------------------------------------------------
+// CLI
+// ----------------------------------------------------------------------------------
+void usage(const char* argv0) {
+  std::cerr << "Usage: " << argv0 << " -i INPUT_DIR -o OUTPUT.root\n";
+}
+
+struct Args {
+  std::string input_dir;
+  std::string output_file;
+};
+
+Args parse_args(int argc, char* argv[]) {
+  Args args;
+
+  for (int i = 1; i < argc; ++i) {
+    const std::string_view arg(argv[i]);
+    if ((arg == "-i" || arg == "--input") && i + 1 < argc) {
+      args.input_dir = argv[++i];
+    } else if ((arg == "-o" || arg == "--output") && i + 1 < argc) {
+      args.output_file = argv[++i];
+    } else {
+      usage(argv[0]);
+      std::exit(1);
+    }
+  }
+
+  if (args.input_dir.empty() || args.output_file.empty()) {
+    usage(argv[0]);
+    std::exit(1);
+  }
+
+  return args;
+}
+
+// ----------------------------------------------------------------------------------
+// Plot helper(s)
+// ----------------------------------------------------------------------------------
+void draw_graph(TFile& output,
+                const std::vector<double>& chip_rates_hz,
+                const std::vector<double>& mean_fired_channels) {
+  output.cd();
+
+  TCanvas canvas("c_fired_channels_vs_rate",
+                 "Mean fired channels per event per chip vs chip rate;chip rate [Hz/chip];mean fired channels/event/chip",
+                 1000,
+                 800);
+  canvas.SetGrid();
+
+  auto* frame = canvas.DrawFrame(0.0, 0.0, 5.0e4, 0.2);
+  frame->SetTitle("Mean fired channels per event per chip vs chip rate;chip rate [Hz/chip];mean fired channels/event/chip");
+  frame->SetStats(false);
+
+  TGraph graph(static_cast<int>(chip_rates_hz.size()), chip_rates_hz.data(), mean_fired_channels.data());
+  graph.SetName("g_fired_channels_vs_rate");
+  graph.SetMarkerStyle(20);
+  graph.Draw("P SAME");
+
+  canvas.Write();
+  graph.Write();
+}
+
+void draw_rate_graph(TFile& output,
+                     const std::vector<double>& chip_rates_hz,
+                     const std::vector<double>& mean_fired_channel_rates_hz) {
+  output.cd();
+
+  TCanvas canvas("c_fired_channel_rate_vs_rate",
+                 "Mean fired channel rate per chip vs chip rate;chip rate [Hz/chip];mean fired channel rate [Hz/chip]",
+                 1000,
+                 800);
+  canvas.SetGrid();
+
+  auto* frame = canvas.DrawFrame(0.0, 0.0, 5.0e4, 1.0e5);
+  frame->SetTitle("Mean fired channel rate per chip vs chip rate;chip rate [Hz/chip];mean fired channel rate [Hz/chip]");
+  frame->SetStats(false);
+
+  TGraph graph(static_cast<int>(chip_rates_hz.size()), chip_rates_hz.data(), mean_fired_channel_rates_hz.data());
+  graph.SetName("g_fired_channel_rate_vs_rate");
+  graph.SetMarkerStyle(20);
+  graph.Draw("P SAME");
+
+  canvas.Write();
+  graph.Write();
+}
+
+}  // namespace
+
+// ----------------------------------------------------------------------------------
+// Main
+// ----------------------------------------------------------------------------------
+int main(int argc, char* argv[]) {
+  TH1::AddDirectory(false);
+
+  const auto args = parse_args(argc, argv);
+  const auto files = rates::find_root_files(args.input_dir);
+  if (files.empty()) {
+    std::cerr << "No ROOT files found in " << args.input_dir << "\n";
+    return 1;
+  }
+
+  fs::path output_path = args.output_file;
+  if (output_path.has_parent_path()) fs::create_directories(output_path.parent_path());
+
+  const rates::LFHCALCellIDDecoder decoder;
+  std::uint64_t n_events = 0;
+  std::unordered_map<rates::LFHCALChipID, ChipStats, rates::LFHCALChipIDHash> chip_stats;
+  rates::FileProgress progress(files.size(), std::cerr);
+
+  for (const auto& path : files) {
+    progress.tick();
+    podio::ROOTReader reader;
+    reader.openFile(path.string());
+    const std::size_t total_events = reader.getEntries("events");
+
+    for (std::size_t event_index = 0; event_index < total_events; ++event_index) {
+      auto data = reader.readEntry("events", event_index);
+      if (!data) continue;
+
+      podio::Frame frame(std::move(data));
+      if (!rates::has_collection(frame, kHitCollection)) continue;
+      ++n_events;
+
+      std::unordered_map<rates::LFHCALChipID, EventChip, rates::LFHCALChipIDHash> event_chips;
+      const auto& hits = frame.get<edm4hep::SimCalorimeterHitCollection>(kHitCollection);
+
+      for (const auto& hit : hits) {
+        const auto cell_id = static_cast<std::uint64_t>(hit.getCellID());
+        if (decoder.is_passive(cell_id)) continue;
+
+        const auto channel = decoder.channel(cell_id);
+        if (channel.rlayerz < 0 || channel.rlayerz >= kNReadoutLayers) continue;
+
+        auto& event_chip = event_chips[decoder.decode_chip(cell_id)];
+        event_chip.channel_energy[channel] += hit.getEnergy();
+      }
+
+      for (const auto& [chip, event_chip] : event_chips) {
+        int active_count = 0;
+        for (const auto& [channel, energy_gev] : event_chip.channel_energy) {
+          if (energy_gev > kCoefficient * rates::mip_energy_gev(channel.rlayerz)) ++active_count;
+        }
+        if (active_count <= 0) continue;
+
+        auto& stats = chip_stats[chip];
+        stats.total_active_channels += static_cast<std::uint64_t>(active_count);
+        ++stats.chip_passes;
+      }
+    }
+  }
+  std::cerr << "\n";
+
+  if (n_events == 0) {
+    std::cerr << "No events with " << kHitCollection << " found\n";
+    return 1;
+  }
+
+  const double total_time_sec = static_cast<double>(n_events) * kEventWindowSec;
+  std::vector<double> chip_rates_hz;
+  std::vector<double> mean_fired_channels;
+  std::vector<double> mean_fired_channel_rates_hz;
+  chip_rates_hz.reserve(chip_stats.size());
+  mean_fired_channels.reserve(chip_stats.size());
+  mean_fired_channel_rates_hz.reserve(chip_stats.size());
+
+  for (const auto& [chip, stats] : chip_stats) {
+    (void)chip;
+    chip_rates_hz.push_back(static_cast<double>(stats.chip_passes) / total_time_sec);
+    mean_fired_channels.push_back(static_cast<double>(stats.total_active_channels) / static_cast<double>(n_events));
+    mean_fired_channel_rates_hz.push_back(static_cast<double>(stats.total_active_channels) / total_time_sec);
+  }
+
+  TFile output(args.output_file.c_str(), "RECREATE");
+  if (!output.IsOpen()) {
+    std::cerr << "Failed to open output " << args.output_file << "\n";
+    return 1;
+  }
+
+  draw_graph(output, chip_rates_hz, mean_fired_channels);
+  draw_rate_graph(output, chip_rates_hz, mean_fired_channel_rates_hz);
+
+  output.Close();
+  return 0;
+}

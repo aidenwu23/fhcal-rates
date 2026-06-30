@@ -111,7 +111,7 @@ int main(int argc, char* argv[]) {
         0.05);
   }
 
-  const br::LFHCALCellIDDecoder decoder;
+  const rates::LFHCALCellIDDecoder decoder;
 
   // Loop events.
   for (std::size_t event_index = 0; event_index < total_events; ++event_index) {
@@ -119,10 +119,10 @@ int main(int argc, char* argv[]) {
     if (!data) continue;
 
     podio::Frame frame(std::move(data));
-    if (!br::has_collection(frame, kHitCollection)) continue;
+    if (!rates::has_collection(frame, kHitCollection)) continue;
 
     // For this event, summed channel energy is tracked separately in each readout layer.
-    std::array<std::unordered_map<br::LFHCALChannelID, double, br::LFHCALChannelIDHash>, kNReadoutLayers> channel_energy_by_layer;
+    std::array<std::unordered_map<rates::LFHCALChannelID, double, rates::LFHCALChannelIDHash>, kNReadoutLayers> channel_energy_by_layer;
     const auto& hits = frame.get<edm4hep::SimCalorimeterHitCollection>(kHitCollection);
 
     // Loop hits and assign each hit's energy to its event-level channel sum.

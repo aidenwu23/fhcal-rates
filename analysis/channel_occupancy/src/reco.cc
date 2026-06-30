@@ -10,9 +10,11 @@
 #include <unordered_map>
 #include <vector>
 
-namespace br::occupancy {
+namespace rates::channel_occupancy {
 namespace {
-
+// ----------------------------------------------------------------------------------
+// Constants and structs
+// ----------------------------------------------------------------------------------
 constexpr const char* kRecoHitCollection = "LFHCALRecHits";
 
 struct EventChannel {
@@ -23,22 +25,28 @@ struct EventChannel {
 };
 }  // namespace
 
+// ----------------------------------------------------------------------------------
+// Initialization
+// ----------------------------------------------------------------------------------
 void init_reco_layers(std::vector<LayerAccum>& layers) {
   init_layer_accumulations(layers);
 }
 
+// ----------------------------------------------------------------------------------
+// Event processing
+// ----------------------------------------------------------------------------------
 bool process_reco_event(const podio::Frame& frame,
-                        const br::LFHCALCellIDDecoder& decoder,
+                        const rates::LFHCALCellIDDecoder& decoder,
                         const ThresholdsByLayer& thresholds_geV,
                         std::vector<LayerAccum>& layers) {
   // Grab LFHCALRecHits when possible.
-  if (!br::has_collection(frame, kRecoHitCollection)) return false;
+  if (!rates::has_collection(frame, kRecoHitCollection)) return false;
 
   // Per-event channel counters.
   // event_counts[layer][channel]: For this event, whether [layer]'s [channel] passed the summed channel threshold.
-  std::vector<std::unordered_map<br::LFHCALChannelID, int, br::LFHCALChannelIDHash>> event_counts(kNLayers + 1);
+  std::vector<std::unordered_map<rates::LFHCALChannelID, int, rates::LFHCALChannelIDHash>> event_counts(kNLayers + 1);
   // event_channels[layer][channel]: For this event, summed channel signal before applying threshold.
-  std::vector<std::unordered_map<br::LFHCALChannelID, EventChannel, br::LFHCALChannelIDHash>> event_channels(kNLayers);
+  std::vector<std::unordered_map<rates::LFHCALChannelID, EventChannel, rates::LFHCALChannelIDHash>> event_channels(kNLayers);
   std::vector<int> layer_totals(kNLayers + 1, 0);
 
   // Grab and loop over hits.
@@ -105,4 +113,4 @@ bool process_reco_event(const podio::Frame& frame,
 
   return true;
 }
-}  // namespace br::occupancy
+}  // namespace rates::channel_occupancy

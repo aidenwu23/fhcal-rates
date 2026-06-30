@@ -6,7 +6,7 @@
 #include <stdexcept>
 #include <string>
 
-namespace br::origins {
+namespace rates::origins {
 namespace {
 
 // Style hists.
@@ -96,4 +96,4 @@ void fill_eta(ThresholdEtaHists& hists,
   hists.by_origin[origin_index]->Fill(eta(position));
 }
 
-}  // namespace br::origins
+}  // namespace rates::origins

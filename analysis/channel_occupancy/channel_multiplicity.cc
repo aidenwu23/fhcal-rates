@@ -1,6 +1,6 @@
 /*
 
-./build/channel_multiplicity -i data/bkg_apr -o plots/occupancy/channel_multiplicity.root
+./build/channel_multiplicity -i data/bkg_apr -o plots/channel_occupancy/channel_multiplicity.root
 
 */
 
@@ -30,6 +30,9 @@ namespace fs = std::filesystem;
 
 namespace {
 
+// ----------------------------------------------------------------------------------
+// Constants and structs
+// ----------------------------------------------------------------------------------
 constexpr const char* kTruthHitCollection = "LFHCALHits";
 constexpr int kNLayers = 7;
 using ThresholdsByLayer = std::array<double, kNLayers>;
@@ -45,19 +48,20 @@ const ThresholdsByLayer kThresholdsGeV = {
     kCoefficient * MIP_2,
     kCoefficient * MIP_2};
 
-// ----------------------------------------------------------------------------------
-// CLI and per-event bookkeeping.
-// ----------------------------------------------------------------------------------
-struct Args {
-  std::string input_dir;
-  std::string output_file;
-};
 
-using EventCounts = std::unordered_map<br::LFHCALChannelID, int, br::LFHCALChannelIDHash>;
+using EventCounts = std::unordered_map<rates::LFHCALChannelID, int, rates::LFHCALChannelIDHash>;
 
 struct EventChannel {
   double energy_gev = 0.0;
   int hit_count = 0;
+};
+
+// ----------------------------------------------------------------------------------
+// CLI
+// ----------------------------------------------------------------------------------
+struct Args {
+  std::string input_dir;
+  std::string output_file;
 };
 
 void usage(const char* argv0) {
@@ -120,14 +124,14 @@ void write_layer_hists(TDirectory* parent, const std::vector<TH1D*>& hists) {
 }
 
 bool process_truth_event(const podio::Frame& frame,
-                         const br::LFHCALCellIDDecoder& decoder,
+                         const rates::LFHCALCellIDDecoder& decoder,
                          const ThresholdsByLayer& thresholds_geV,
                          const std::vector<TH1D*>& hists) {
-  if (!br::has_collection(frame, kTruthHitCollection)) return false;
+  if (!rates::has_collection(frame, kTruthHitCollection)) return false;
 
   std::vector<EventCounts> event_counts(kNLayers);
   // event_channels[layer][channel]: For this event, summed channel signal before applying threshold.
-  std::vector<std::unordered_map<br::LFHCALChannelID, EventChannel, br::LFHCALChannelIDHash>> event_channels(kNLayers);
+  std::vector<std::unordered_map<rates::LFHCALChannelID, EventChannel, rates::LFHCALChannelIDHash>> event_channels(kNLayers);
 
   // Use LFHCALHits.
   const auto& hits = frame.get<edm4hep::SimCalorimeterHitCollection>(kTruthHitCollection);
@@ -165,7 +169,7 @@ int main(int argc, char* argv[]) {
   TH1::AddDirectory(false);
 
   const auto args = parse_args(argc, argv);
-  const auto files = br::find_root_files(args.input_dir);
+  const auto files = rates::find_root_files(args.input_dir);
   if (files.empty()) {
     std::cerr << "No ROOT files found in " << args.input_dir << "\n";
     return 1;
@@ -174,11 +178,11 @@ int main(int argc, char* argv[]) {
   fs::path output_path = args.output_file;
   if (output_path.has_parent_path()) fs::create_directories(output_path.parent_path());
 
-  const br::LFHCALCellIDDecoder decoder;
+  const rates::LFHCALCellIDDecoder decoder;
   auto hists = make_layer_hists();
 
   std::uint64_t n_events = 0;
-  br::FileProgress progress(files.size(), std::cerr);
+  rates::FileProgress progress(files.size(), std::cerr);
 
   for (const auto& path : files) {
     progress.tick();

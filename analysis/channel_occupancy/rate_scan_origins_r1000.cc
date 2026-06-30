@@ -1,6 +1,6 @@
 /*
 
-./build/rate_scan_origins_r1000 -i data/bkg_apr -o plots/occupancy/rate_scan_origins_r1000.root
+./build/rate_scan_origins_r1000 -i data/bkg_apr -o plots/channel_occupancy/rate_scan_origins_r1000.root
 
 */
 
@@ -46,8 +46,6 @@ constexpr double kMaxRadiusMm = 1000.0;
 constexpr double kMaxRadiusMm2 = kMaxRadiusMm * kMaxRadiusMm;
 constexpr double kHistMinimum = 0.8;
 
-constexpr double MIP_1 = 3.5e-3;
-constexpr double MIP_2 = 7.0e-3;
 constexpr std::array<double, 6> kCoefficients = {0.0, 0.2, 0.4, 0.6, 0.8, 1.0};
 const std::array<int, kCoefficients.size()> kColors = {kBlack, kBlue + 1, kGreen + 2, kOrange + 1, kRed + 1, kMagenta + 1};
 
@@ -71,7 +69,7 @@ struct Args {
 
 struct ThresholdProducts {
   TH1D* h_rate = nullptr;
-  std::unordered_map<br::LFHCALChannelID, std::uint64_t, br::LFHCALChannelIDHash> channel_passes;
+  std::unordered_map<rates::LFHCALChannelID, std::uint64_t, rates::LFHCALChannelIDHash> channel_passes;
   double p95_rate_hz = 0.0;
   double p99_rate_hz = 0.0;
 };
@@ -111,9 +109,6 @@ Args parse_args(int argc, char* argv[]) {
 // ----------------------------------------------------------------------------------
 // Label helpers and drawing.
 // ----------------------------------------------------------------------------------
-double mip_energy_gev(int layer) {
-  return layer < 2 ? MIP_1 : MIP_2;
-}
 
 std::string threshold_label(double threshold_mip) {
   char buffer[64];
@@ -210,7 +205,7 @@ int main(int argc, char* argv[]) {
 
   // Parse args and find ROOT files.
   const auto args = parse_args(argc, argv);
-  const auto files = br::find_root_files(args.input_dir);
+  const auto files = rates::find_root_files(args.input_dir);
   if (files.empty()) {
     std::cerr << "No ROOT files found in " << args.input_dir << "\n";
     return 1;
@@ -221,7 +216,7 @@ int main(int argc, char* argv[]) {
   if (output_path.has_parent_path()) fs::create_directories(output_path.parent_path());
 
   // One rate histogram per origin, readout layer, and threshold.
-  const auto rate_edges = br::log_edges(240, 1.0, 1e7);
+  const auto rate_edges = rates::log_edges(240, 1.0, 1e7);
   std::array<std::array<std::array<ThresholdProducts, kCoefficients.size()>, kNReadoutLayers>, kOrigins.size()> products{};
 
   for (std::size_t origin_slot = 0; origin_slot < kOrigins.size(); ++origin_slot) {
@@ -240,9 +235,9 @@ int main(int argc, char* argv[]) {
     }
   }
 
-  const br::LFHCALCellIDDecoder decoder;
+  const rates::LFHCALCellIDDecoder decoder;
   std::uint64_t n_events = 0;
-  br::FileProgress progress(files.size(), std::cerr);
+  rates::FileProgress progress(files.size(), std::cerr);
 
   // Loop input files.
   for (const auto& path : files) {
@@ -257,11 +252,11 @@ int main(int argc, char* argv[]) {
       if (!data) continue;
 
       podio::Frame frame(std::move(data));
-      if (!br::has_collection(frame, kHitCollection)) continue;
+      if (!rates::has_collection(frame, kHitCollection)) continue;
       ++n_events;
 
       // For this event, store the summed channel signal before applying thresholds.
-      std::array<std::unordered_map<br::LFHCALChannelID, EventChannel, br::LFHCALChannelIDHash>, kNReadoutLayers> event_channels;
+      std::array<std::unordered_map<rates::LFHCALChannelID, EventChannel, rates::LFHCALChannelIDHash>, kNReadoutLayers> event_channels;
       const auto& hits = frame.get<edm4hep::SimCalorimeterHitCollection>(kHitCollection);
 
       // Loop hits.
@@ -288,7 +283,7 @@ int main(int argc, char* argv[]) {
           const double contribution_energy = contribution.getEnergy();
           if (contribution_energy <= 0.0) continue;
 
-          const int raw_origin_index = br::origin_index(contribution.getParticle().getGeneratorStatus());
+          const int raw_origin_index = rates::origin_index(contribution.getParticle().getGeneratorStatus());
           const int origin_slot = tracked_origin_slot(raw_origin_index);
           if (origin_slot < 0) continue;
           event_channel.energy_by_origin[origin_slot] += contribution_energy;
@@ -303,7 +298,7 @@ int main(int argc, char* argv[]) {
             // Apply the summed channel threshold.
             // *No thresholds applied at the contribution level: if a channel exceeds the threshold, all its 
             // contributions will make it*
-            if (event_channel.energy_gev <= kCoefficients[threshold_index] * mip_energy_gev(layer)) continue;
+            if (event_channel.energy_gev <= kCoefficients[threshold_index] * rates::mip_energy_gev(layer)) continue;
 
             for (std::size_t origin_slot = 0; origin_slot < kOrigins.size(); ++origin_slot) {
 

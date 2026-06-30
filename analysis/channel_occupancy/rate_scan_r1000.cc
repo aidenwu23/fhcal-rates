@@ -1,6 +1,6 @@
 /*
 
-./build/rate_scan -i data/bkg_apr -o plots/occupancy/rate_scan.root
+./build/rate_scan_r1000 -i data/bkg_apr -o plots/channel_occupancy/rate_scan_r1000.root
 
 */
 
@@ -23,6 +23,7 @@
 
 #include <algorithm>
 #include <array>
+#include <cmath>
 #include <cstdio>
 #include <cstdint>
 #include <filesystem>
@@ -40,9 +41,10 @@ namespace {
 constexpr const char* kHitCollection = "LFHCALHits";
 constexpr int kNReadoutLayers = 7;
 constexpr double kEventWindowSec = 2e-6;
+constexpr double kMaxRadiusMm = 1000.0;
+constexpr double kMaxRadiusMm2 = kMaxRadiusMm * kMaxRadiusMm;
+constexpr double kHistMinimum = 0.8;
 
-constexpr double MIP_1 = 3.5e-3;
-constexpr double MIP_2 = 7.0e-3;
 constexpr std::array<double, 6> kCoefficients = {0.0, 0.2, 0.4, 0.6, 0.8, 1.0};
 const std::array<int, kCoefficients.size()> kColors = {kBlack, kBlue + 1, kGreen + 2, kOrange + 1, kRed + 1, kMagenta + 1};
 
@@ -56,7 +58,7 @@ struct Args {
 
 struct ThresholdProducts {
   TH1D* h_rate = nullptr;
-  std::unordered_map<br::LFHCALChannelID, std::uint64_t, br::LFHCALChannelIDHash> channel_passes;
+  std::unordered_map<rates::LFHCALChannelID, std::uint64_t, rates::LFHCALChannelIDHash> channel_passes;
   double p95_rate_hz = 0.0;
   double p99_rate_hz = 0.0;
 };
@@ -91,9 +93,6 @@ Args parse_args(int argc, char* argv[]) {
 // ----------------------------------------------------------------------------------
 // Label helpers and drawing.
 // ----------------------------------------------------------------------------------
-double mip_energy_gev(int layer) {
-  return layer < 2 ? MIP_1 : MIP_2;
-}
 
 std::string threshold_label(double threshold_mip) {
   char buffer[64];
@@ -123,20 +122,18 @@ void draw_rate_overlay(TDirectory* dir,
                        int layer,
                        int percentile) {
   dir->cd();
-  TCanvas canvas(("c_layer" + std::to_string(layer) + "_rate_threshold_overlay_p" + std::to_string(percentile)).c_str(),
-                 ("Layer " + std::to_string(layer) + " rate threshold overlay").c_str(),
+  TCanvas canvas(("c_layer" + std::to_string(layer) + "_rate_threshold_overlay_p" + std::to_string(percentile) + "_r1000").c_str(),
+                 ("Layer " + std::to_string(layer) + " rate threshold overlay, R < 1000 mm").c_str(),
                  1000,
                  800);
   canvas.SetLogx();
   canvas.SetLogy();
 
-  TLegend legend(0.765, 0.65, 0.88, 0.88);
+  TLegend legend(0.70, 0.60, 0.88, 0.88);
   legend.SetBorderSize(0);
   legend.SetFillStyle(0);
 
   double max_y = 0.0;
-
-  // To set mean line height later.
   for (const auto& product : products) {
     max_y = std::max(max_y, product.h_rate->GetMaximum());
   }
@@ -148,9 +145,9 @@ void draw_rate_overlay(TDirectory* dir,
     hist->SetStats(false);
     hist->SetLineColor(kColors[threshold_index]);
     hist->SetLineWidth(2);
-    hist->SetMinimum(0.8);
+    hist->SetMinimum(kHistMinimum);
     hist->SetMaximum(1.25 * max_y);
-    hist->SetTitle(("Layer " + std::to_string(layer) + ";rate [Hz/channel];channels").c_str());
+    hist->SetTitle(("Layer " + std::to_string(layer) + ", R < 1000 mm;rate [Hz/channel];channels").c_str());
     hist->Draw(drew ? "hist same" : "hist");
     drew = true;
     const double percentile_rate_hz = percentile == 95 ? products[threshold_index].p95_rate_hz
@@ -165,7 +162,7 @@ void draw_rate_overlay(TDirectory* dir,
     const double percentile_rate_hz = percentile == 95 ? product.p95_rate_hz : product.p99_rate_hz;
     if (percentile_rate_hz <= 0.0) continue;
 
-    auto* line = new TLine(percentile_rate_hz, 0.8, percentile_rate_hz, 1.25 * max_y);
+    auto* line = new TLine(percentile_rate_hz, kHistMinimum, percentile_rate_hz, 1.25 * max_y);
     line->SetLineColor(kColors[threshold_index]);
     line->SetLineStyle(2);
     line->SetLineWidth(2);
@@ -181,8 +178,9 @@ void draw_rate_overlay(TDirectory* dir,
 int main(int argc, char* argv[]) {
   TH1::AddDirectory(false);
 
+  // Parse args.
   const auto args = parse_args(argc, argv);
-  const auto files = br::find_root_files(args.input_dir);
+  const auto files = rates::find_root_files(args.input_dir);
   if (files.empty()) {
     std::cerr << "No ROOT files found in " << args.input_dir << "\n";
     return 1;
@@ -191,38 +189,42 @@ int main(int argc, char* argv[]) {
   fs::path output_path = args.output_file;
   if (output_path.has_parent_path()) fs::create_directories(output_path.parent_path());
 
-  const auto rate_edges = br::log_edges(240, 1.0, 1e7);
+  // One rate histogram per readout layer and threshold.
+  const auto rate_edges = rates::log_edges(240, 1.0, 1e7);
   std::array<std::array<ThresholdProducts, kCoefficients.size()>, kNReadoutLayers> products{};
 
   for (int layer = 0; layer < kNReadoutLayers; ++layer) {
     for (std::size_t threshold_index = 0; threshold_index < kCoefficients.size(); ++threshold_index) {
-      const std::string name = "h_channel_rate_layer" + std::to_string(layer) + "_" + threshold_tag(kCoefficients[threshold_index]);
+      const std::string name = "h_channel_rate_layer" + std::to_string(layer) + "_" + threshold_tag(kCoefficients[threshold_index]) + "_r1000";
       const std::string title = "LFHCAL per-channel rate, layer " + std::to_string(layer) +
           ", threshold " + threshold_label(kCoefficients[threshold_index]) +
-          ";rate [Hz/channel];channels";
+          ", R < 1000 mm;rate [Hz/channel];channels";
       products[layer][threshold_index].h_rate = new TH1D(name.c_str(), title.c_str(), 240, rate_edges.data());
     }
   }
 
-  const br::LFHCALCellIDDecoder decoder;
+  const rates::LFHCALCellIDDecoder decoder;
   std::uint64_t n_events = 0;
-  br::FileProgress progress(files.size(), std::cerr);
+  rates::FileProgress progress(files.size(), std::cerr);
 
+  // Loop input files.
   for (const auto& path : files) {
     progress.tick();
     podio::ROOTReader reader;
     reader.openFile(path.string());
     const std::size_t total_events = reader.getEntries("events");
 
+    // Loop events.
     for (std::size_t event_index = 0; event_index < total_events; ++event_index) {
       auto data = reader.readEntry("events", event_index);
       if (!data) continue;
 
       podio::Frame frame(std::move(data));
-      if (!br::has_collection(frame, kHitCollection)) continue;
+      if (!rates::has_collection(frame, kHitCollection)) continue;
       ++n_events;
 
-      std::array<std::unordered_map<br::LFHCALChannelID, double, br::LFHCALChannelIDHash>, kNReadoutLayers> channel_energy_by_layer;
+      // For this event, store the summed energy seen by each channel in each readout layer.
+      std::array<std::unordered_map<rates::LFHCALChannelID, double, rates::LFHCALChannelIDHash>, kNReadoutLayers> channel_energy_by_layer;
       const auto& hits = frame.get<edm4hep::SimCalorimeterHitCollection>(kHitCollection);
 
       // Loop hits and sum deposited energy per channel in this event.
@@ -233,6 +235,11 @@ int main(int argc, char* argv[]) {
         const auto channel = decoder.channel(cell_id);
         if (channel.rlayerz < 0 || channel.rlayerz >= kNReadoutLayers) continue;
 
+        // Keep just the central channels whose transverse radius is below 1000 mm.
+        const auto position = decoder.position(cell_id);
+        const double radius_mm2 = position.x_mm * position.x_mm + position.y_mm * position.y_mm;
+        if (radius_mm2 > kMaxRadiusMm2) continue;
+
         channel_energy_by_layer[channel.rlayerz][channel] += hit.getEnergy();
       }
 
@@ -240,7 +247,9 @@ int main(int argc, char* argv[]) {
       for (int layer = 0; layer < kNReadoutLayers; ++layer) {
         for (const auto& [channel, energy] : channel_energy_by_layer[layer]) {
           for (std::size_t threshold_index = 0; threshold_index < kCoefficients.size(); ++threshold_index) {
-            if (energy <= kCoefficients[threshold_index] * mip_energy_gev(layer)) continue;
+            if (energy <= kCoefficients[threshold_index] * rates::mip_energy_gev(layer)) continue;
+
+            // Count one threshold-passing event for this channel.
             ++products[layer][threshold_index].channel_passes[channel];
           }
         }
@@ -254,8 +263,7 @@ int main(int argc, char* argv[]) {
   }
 
   const double total_time_sec = static_cast<double>(n_events) * kEventWindowSec;
-
-  // Loop through rlayerz's.
+  // Go thru all rlayerz's.
   for (int layer = 0; layer < kNReadoutLayers; ++layer) {
     for (std::size_t threshold_index = 0; threshold_index < kCoefficients.size(); ++threshold_index) {
       std::vector<double> rates_hz;
@@ -264,7 +272,7 @@ int main(int argc, char* argv[]) {
       for (const auto& [channel, passes] : products[layer][threshold_index].channel_passes) {
         (void)channel;
 
-        // Compute and fill channel rate into hist.
+        // Compute rate.
         const double rate_hz = static_cast<double>(passes) / total_time_sec;
         products[layer][threshold_index].h_rate->Fill(rate_hz);
         rates_hz.push_back(rate_hz);
@@ -272,7 +280,7 @@ int main(int argc, char* argv[]) {
 
       if (!rates_hz.empty()) {
         std::sort(rates_hz.begin(), rates_hz.end());
-
+        
         const std::size_t p95_index = static_cast<std::size_t>(0.95 * static_cast<double>(rates_hz.size() - 1));
         const std::size_t p99_index = static_cast<std::size_t>(0.99 * static_cast<double>(rates_hz.size() - 1));
         products[layer][threshold_index].p95_rate_hz = rates_hz[p95_index];

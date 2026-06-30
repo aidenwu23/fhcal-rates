@@ -1,6 +1,6 @@
 /*
 
-./build/rate_vs_mip -i data/bkg_apr -o plots/occupancy/rate_vs_mip.root
+./build/rate_vs_mip -i data/bkg_apr -o plots/channel_occupancy/rate_vs_mip.root
 
 */
 
@@ -40,8 +40,6 @@ constexpr int kNReadoutLayers = 7;
 constexpr double kEventWindowSec = 2e-6;
 
 // The first two readout layers use one MIP scale, and the later layers use another.
-constexpr double MIP_1 = 3.5e-3;
-constexpr double MIP_2 = 7.0e-3;
 constexpr std::array<double, 16> kCoefficients = {0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0, 1.1, 1.2, 1.3, 1.4, 1.5};
 constexpr std::array<double, 2> kPercentiles = {0.95, 0.99};
 constexpr std::array<int, kNReadoutLayers> kLayerColors = {
@@ -54,7 +52,7 @@ struct Args {
 
 struct ThresholdProducts {
   // channel_passes[channel]: number of events where this channel cleared one coefficient choice.
-  std::unordered_map<br::LFHCALChannelID, std::uint64_t, br::LFHCALChannelIDHash> channel_passes;
+  std::unordered_map<rates::LFHCALChannelID, std::uint64_t, rates::LFHCALChannelIDHash> channel_passes;
 };
 
 // ----------------------------------------------------------------------------------
@@ -91,9 +89,6 @@ Args parse_args(int argc, char* argv[]) {
 // Label helpers and drawing.
 // ----------------------------------------------------------------------------------
 // Convert a layer index into the MIP energy scale used for that layer family.
-double mip_energy_gev(int layer) {
-  return layer < 2 ? MIP_1 : MIP_2;
-}
 
 // Turn a percentile request into the corresponding data index.
 std::size_t percentile_index(std::size_t n_values, double percentile) {
@@ -124,15 +119,6 @@ void draw_overlay(TFile& output,
                  800);
   canvas.SetLogy();
   canvas.SetGrid();
-
-  // Find the tallest point first so every layer fits on the same frame.
-  double max_y = 0.0;
-  for (int layer = 0; layer < kNReadoutLayers; ++layer) {
-    for (double value : values[layer]) {
-      max_y = std::max(max_y, value);
-    }
-  }
-  if (max_y <= 0.0) max_y = 1.0;
 
   auto* frame = canvas.DrawFrame(kCoefficients.front(), 200.0, kCoefficients.back(), 1.0e5);
   frame->SetTitle(percentile_title(percentile).c_str());
@@ -171,7 +157,7 @@ int main(int argc, char* argv[]) {
 
   // Parse inputs and make sure there is data to process.
   const auto args = parse_args(argc, argv);
-  const auto files = br::find_root_files(args.input_dir);
+  const auto files = rates::find_root_files(args.input_dir);
   if (files.empty()) {
     std::cerr << "No ROOT files found in " << args.input_dir << "\n";
     return 1;
@@ -182,9 +168,9 @@ int main(int argc, char* argv[]) {
 
   // products[layer][coefficient]: persistent event-pass counts for that layer and threshold choice.
   std::array<std::array<ThresholdProducts, kCoefficients.size()>, kNReadoutLayers> products{};
-  const br::LFHCALCellIDDecoder decoder;
+  const rates::LFHCALCellIDDecoder decoder;
   std::uint64_t n_events = 0;
-  br::FileProgress progress(files.size(), std::cerr);
+  rates::FileProgress progress(files.size(), std::cerr);
 
   // Loop over all files and accumulate channel pass counts event by event.
   for (const auto& path : files) {
@@ -198,11 +184,11 @@ int main(int argc, char* argv[]) {
       if (!data) continue;
 
       podio::Frame frame(std::move(data));
-      if (!br::has_collection(frame, kHitCollection)) continue;
+      if (!rates::has_collection(frame, kHitCollection)) continue;
       ++n_events;
 
       // For this event, store the summed channel energy separately in each readout layer.
-      std::array<std::unordered_map<br::LFHCALChannelID, double, br::LFHCALChannelIDHash>, kNReadoutLayers> channel_energy_by_layer;
+      std::array<std::unordered_map<rates::LFHCALChannelID, double, rates::LFHCALChannelIDHash>, kNReadoutLayers> channel_energy_by_layer;
       const auto& hits = frame.get<edm4hep::SimCalorimeterHitCollection>(kHitCollection);
 
       // Loop hits and fold them into the event-level channel sums.
@@ -220,7 +206,7 @@ int main(int argc, char* argv[]) {
       for (int layer = 0; layer < kNReadoutLayers; ++layer) {
         for (const auto& [channel, energy] : channel_energy_by_layer[layer]) {
           for (std::size_t threshold_index = 0; threshold_index < kCoefficients.size(); ++threshold_index) {
-            if (energy <= kCoefficients[threshold_index] * mip_energy_gev(layer)) continue;
+            if (energy <= kCoefficients[threshold_index] * rates::mip_energy_gev(layer)) continue;
             ++products[layer][threshold_index].channel_passes[channel];
           }
         }

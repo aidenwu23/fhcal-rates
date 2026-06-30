@@ -16,9 +16,11 @@
 #include <utility>
 #include <vector>
 
-namespace br::occupancy::longitudinal {
+namespace rates::channel_occupancy::longitudinal {
 namespace {
-
+// ----------------------------------------------------------------------------------
+// Constants and structs
+// ----------------------------------------------------------------------------------
 constexpr const char* kTruthHitCollection = "LFHCALHits";
 
 constexpr const char* kTruthLabels[] = {
@@ -43,6 +45,9 @@ struct EventChannel {
 
 }  // namespace
 
+// ----------------------------------------------------------------------------------
+// Initialization
+// ----------------------------------------------------------------------------------
 void init_truth_groups(std::vector<TruthGroup>& groups) {
   groups.clear();
   groups.reserve(kNTruthGroups);
@@ -54,18 +59,21 @@ void init_truth_groups(std::vector<TruthGroup>& groups) {
   }
 }
 
+// ----------------------------------------------------------------------------------
+// Event processing
+// ----------------------------------------------------------------------------------
 bool process_truth_event(const podio::Frame& frame,
-                         const br::LFHCALCellIDDecoder& decoder,
+                         const rates::LFHCALCellIDDecoder& decoder,
                          const ThresholdsByLayer& thresholds_geV,
                          std::vector<TruthGroup>& groups) {
   // Try to grab LFHCALHits.
-  if (!br::has_collection(frame, kTruthHitCollection)) return false;
+  if (!rates::has_collection(frame, kTruthHitCollection)) return false;
 
   // Per-event channel counters for every truth group and layer.
-  std::vector<std::vector<std::unordered_map<br::LFHCALChannelID, int, br::LFHCALChannelIDHash>>> event_counts(
-      groups.size(), std::vector<std::unordered_map<br::LFHCALChannelID, int, br::LFHCALChannelIDHash>>(kNLayers));
+  std::vector<std::vector<std::unordered_map<rates::LFHCALChannelID, int, rates::LFHCALChannelIDHash>>> event_counts(
+      groups.size(), std::vector<std::unordered_map<rates::LFHCALChannelID, int, rates::LFHCALChannelIDHash>>(kNLayers));
   // event_channels[layer][channel]: For this event, summed channel signal before applying threshold.
-  std::vector<std::unordered_map<br::LFHCALChannelID, EventChannel, br::LFHCALChannelIDHash>> event_channels(kNLayers);
+  std::vector<std::unordered_map<rates::LFHCALChannelID, EventChannel, rates::LFHCALChannelIDHash>> event_channels(kNLayers);
   std::vector<std::vector<int>> layer_totals(groups.size(), std::vector<int>(kNLayers, 0));
 
   // Grab and loop over hits.
@@ -90,7 +98,7 @@ bool process_truth_event(const podio::Frame& frame,
       const double energy = contribution.getEnergy();
       if (energy <= 0.0) continue;
 
-      const int origin_index = br::origin_index(contribution.getParticle().getGeneratorStatus());
+      const int origin_index = rates::origin_index(contribution.getParticle().getGeneratorStatus());
       if (origin_index < 0 || origin_index >= kAllTruthIndex) continue;
       event_channel.energy_by_origin[origin_index] += energy;
     }
@@ -143,4 +151,4 @@ bool process_truth_event(const podio::Frame& frame,
   return true;
 }
 
-}  // namespace br::occupancy::longitudinal
+}  // namespace rates::channel_occupancy::longitudinal

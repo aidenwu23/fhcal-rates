@@ -57,15 +57,15 @@ Args parse_args(int argc, char* argv[]) {
 
 int main(int argc, char* argv[]) {
   const auto args = parse_args(argc, argv);
-  const auto files = br::find_root_files(args.input_dir);
+  const auto files = rates::find_root_files(args.input_dir);
   if (files.empty()) {
     std::cerr << "No ROOT files found in " << args.input_dir << "\n";
     return 1;
   }
 
-  const br::LFHCALCellIDDecoder decoder;
-  std::unordered_set<br::LFHCALChannelID, br::LFHCALChannelIDHash> all_channels;
-  br::FileProgress progress(files.size(), std::cerr);
+  const rates::LFHCALCellIDDecoder decoder;
+  std::unordered_set<rates::LFHCALChannelID, rates::LFHCALChannelIDHash> all_channels;
+  rates::FileProgress progress(files.size(), std::cerr);
 
   for (const auto& path : files) {
     progress.tick();
@@ -78,7 +78,7 @@ int main(int argc, char* argv[]) {
       if (!data) continue;
 
       podio::Frame frame(std::move(data));
-      if (!br::has_collection(frame, kHitCollection)) continue;
+      if (!rates::has_collection(frame, kHitCollection)) continue;
 
       const auto& hits = frame.get<edm4hep::SimCalorimeterHitCollection>(kHitCollection);
       for (const auto& hit : hits) {

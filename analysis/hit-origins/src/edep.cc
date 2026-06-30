@@ -3,7 +3,7 @@
 #include <stdexcept>
 #include <string>
 
-namespace br::origins {
+namespace rates::origins {
 namespace {
 
 // Style hists.
@@ -84,4 +84,4 @@ void fill_edep(LayerEdepHists& hists, int origin_index, double energy) {
   hists.by_origin[origin_index]->Fill(energy);
 }
 
-}  // namespace br::origins
+}  // namespace rates::origins
