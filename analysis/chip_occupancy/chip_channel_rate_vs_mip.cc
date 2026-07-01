@@ -178,13 +178,11 @@ int main(int argc, char* argv[]) {
         const auto cell_id = static_cast<std::uint64_t>(hit.getCellID());
         if (decoder.is_passive(cell_id)) continue;
 
-        // Decode cell ID into a channel.
+        // Increment the corresponding channel's energy for the corresponding readout chip.
         const auto channel = decoder.channel(cell_id);
-        if (channel.rlayerz < 0 || channel.rlayerz >= kNReadoutLayers) continue;
-
-        // Decode cell ID into a chip.
         auto& event_chip = event_chips[decoder.decode_chip(cell_id)];
-        event_chip.channel_energy[channel] += hit.getEnergy(); // Increment that chip's corresponding channel. 
+
+        event_chip.channel_energy[channel] += hit.getEnergy();
       }
 
       // Loop all chips.

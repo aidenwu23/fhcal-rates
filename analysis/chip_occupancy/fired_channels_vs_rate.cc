@@ -140,6 +140,7 @@ void draw_rate_graph(TFile& output,
 int main(int argc, char* argv[]) {
   TH1::AddDirectory(false);
 
+  // Handle args and input files.
   const auto args = parse_args(argc, argv);
   const auto files = rates::find_root_files(args.input_dir);
   if (files.empty()) {
@@ -155,12 +156,14 @@ int main(int argc, char* argv[]) {
   std::unordered_map<rates::LFHCALChipID, ChipStats, rates::LFHCALChipIDHash> chip_stats;
   rates::FileProgress progress(files.size(), std::cerr);
 
+  // Loop all files.
   for (const auto& path : files) {
     progress.tick();
     podio::ROOTReader reader;
     reader.openFile(path.string());
     const std::size_t total_events = reader.getEntries("events");
 
+    // Per file, loop all events.
     for (std::size_t event_index = 0; event_index < total_events; ++event_index) {
       auto data = reader.readEntry("events", event_index);
       if (!data) continue;
@@ -172,20 +175,26 @@ int main(int argc, char* argv[]) {
       std::unordered_map<rates::LFHCALChipID, EventChip, rates::LFHCALChipIDHash> event_chips;
       const auto& hits = frame.get<edm4hep::SimCalorimeterHitCollection>(kHitCollection);
 
+      // Per event, loop all hits.
       for (const auto& hit : hits) {
         const auto cell_id = static_cast<std::uint64_t>(hit.getCellID());
         if (decoder.is_passive(cell_id)) continue;
 
+        // Increment the corresponding channel's energy for the corresponding readout chip.
         const auto channel = decoder.channel(cell_id);
-        if (channel.rlayerz < 0 || channel.rlayerz >= kNReadoutLayers) continue;
-
         auto& event_chip = event_chips[decoder.decode_chip(cell_id)];
+
         event_chip.channel_energy[channel] += hit.getEnergy();
       }
 
+      // Loop over all chips.
       for (const auto& [chip, event_chip] : event_chips) {
         int active_count = 0;
+
+        // Per chip, loop over all channels.
         for (const auto& [channel, energy_gev] : event_chip.channel_energy) {
+
+          // Increment if channel exceeds threshold.
           if (energy_gev > kCoefficient * rates::mip_energy_gev(channel.rlayerz)) ++active_count;
         }
         if (active_count <= 0) continue;
@@ -211,6 +220,7 @@ int main(int argc, char* argv[]) {
   mean_fired_channels.reserve(chip_stats.size());
   mean_fired_channel_rates_hz.reserve(chip_stats.size());
 
+  // After collecting data from all events, process the statistics pooled in each chip.
   for (const auto& [chip, stats] : chip_stats) {
     (void)chip;
     chip_rates_hz.push_back(static_cast<double>(stats.chip_passes) / total_time_sec);

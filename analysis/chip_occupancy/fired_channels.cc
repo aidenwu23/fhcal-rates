@@ -139,26 +139,29 @@ int main(int argc, char* argv[]) {
       std::unordered_map<rates::LFHCALChipID, EventChip, rates::LFHCALChipIDHash> event_chips;
       const auto& hits = frame.get<edm4hep::SimCalorimeterHitCollection>(kHitCollection);
 
-      // Loop hits and fold them into per-event, per-chip channel sums.
+      // Loop hits.
       for (const auto& hit : hits) {
         const auto cell_id = static_cast<std::uint64_t>(hit.getCellID());
         if (decoder.is_passive(cell_id)) continue;
 
+        // Increment the corresponding channel's energy for the corresponding readout chip.
         const auto channel = decoder.channel(cell_id);
-        if (channel.rlayerz < 0 || channel.rlayerz >= kNReadoutLayers) continue;
         auto& event_chip = event_chips[decoder.decode_chip(cell_id)];
+
         event_chip.channel_energy[channel] += hit.getEnergy();
       }
 
       // active_counts[chip]: how many distinct channels passed threshold in this chip this event.
       std::unordered_map<rates::LFHCALChipID, int, rates::LFHCALChipIDHash> active_counts;
 
-      // This chip grouping corresponds to one hardware chip.
+      // Loop over all chips.
       for (const auto& [chip, event_chip] : event_chips) {
         int active_count = 0;
 
-        // Count distinct fired channels in this chip after the threshold.
+        // Per chip, loop over all stored channels.
         for (const auto& [channel, energy_gev] : event_chip.channel_energy) {
+
+          // Increment if that channel's energy exceeds the threshold.
           if (energy_gev > kCoefficient * rates::mip_energy_gev(channel.rlayerz)) ++active_count;
         }
 

@@ -199,7 +199,6 @@ int main(int argc, char* argv[]) {
         if (decoder.is_passive(cell_id)) continue;
 
         const auto channel = decoder.channel(cell_id);
-        if (channel.rlayerz < 0 || channel.rlayerz >= kNReadoutLayers) continue;
 
         const auto position = decoder.position(cell_id);
         const double radius_mm2 = position.x_mm * position.x_mm + position.y_mm * position.y_mm;

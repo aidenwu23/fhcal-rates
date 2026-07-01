@@ -226,7 +226,6 @@ int main(int argc, char* argv[]) {
         if (decoder.is_passive(cell_id)) continue;
 
         const auto channel = decoder.channel(cell_id);
-        if (channel.rlayerz < 0 || channel.rlayerz >= kNReadoutLayers) continue;
 
         channel_energy_by_layer[channel.rlayerz][channel] += hit.getEnergy();
       }

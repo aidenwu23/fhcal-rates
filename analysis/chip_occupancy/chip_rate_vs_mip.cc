@@ -227,27 +227,30 @@ int main(int argc, char* argv[]) {
         const auto cell_id = static_cast<std::uint64_t>(hit.getCellID());
         if (decoder.is_passive(cell_id)) continue;
 
+        // Increment the corresponding channel's energy for the corresponding readout chip.
         const auto channel = decoder.channel(cell_id);
-        if (channel.rlayerz < 0 || channel.rlayerz >= kNReadoutLayers) continue;
-
-        // Accumulate into channels in the corresponding chip for this cell ID.
         auto& event_chip = event_chips[decoder.decode_chip(cell_id)];
+
         event_chip.channel_energy[channel] += hit.getEnergy();
       }
 
       // fired_chips[threshold]: which chips fired in this event for a certain threshold.
       std::array<std::unordered_set<rates::LFHCALChipID, rates::LFHCALChipIDHash>, kCoefficients.size()> fired_chips;
 
-      // This chip grouping corresponds to one hardware chip.
+      // Loop over all chips.
       for (const auto& [chip, event_chip] : event_chips) {
 
         // For each module, loop through all channels.
         for (const auto& [channel, energy_gev] : event_chip.channel_energy) {
           const double mip_gev = rates::mip_energy_gev(channel.rlayerz);
 
-          // If any channel crosses the threshold, the corresponding chip is counted as fired.
+          // For each channel, loop over all thresholds.
           for (std::size_t threshold_index = 0; threshold_index < kCoefficients.size(); ++threshold_index) {
+
+            // Skip if channel energy doesn't pass threshold.
             if (energy_gev <= kCoefficients[threshold_index] * mip_gev) continue;
+
+            // Otherwise mark the chip as fired.
             fired_chips[threshold_index].insert(chip); // Repeated inserts keep one entry (unordered set)
           }
         }

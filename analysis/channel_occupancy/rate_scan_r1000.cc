@@ -233,7 +233,6 @@ int main(int argc, char* argv[]) {
         if (decoder.is_passive(cell_id)) continue;
 
         const auto channel = decoder.channel(cell_id);
-        if (channel.rlayerz < 0 || channel.rlayerz >= kNReadoutLayers) continue;
 
         // Keep just the central channels whose transverse radius is below 1000 mm.
         const auto position = decoder.position(cell_id);
