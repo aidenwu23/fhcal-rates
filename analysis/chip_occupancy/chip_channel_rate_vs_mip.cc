@@ -185,7 +185,7 @@ int main(int argc, char* argv[]) {
         event_chip.channel_energy[channel] += hit.getEnergy();
       }
 
-      // Loop all chips.
+      // After processing all hits into corresponding channels and chips, loop over all chips.
       for (const auto& [chip, event_chip] : event_chips) {
         (void)chip;
 
@@ -214,6 +214,7 @@ int main(int argc, char* argv[]) {
 
   std::array<double, kCoefficients.size()> rates_hz{};
   std::array<double, kCoefficients.size()> means{};
+  // Loop over all thresholds' accumulated products across the full sample.
   for (std::size_t threshold_index = 0; threshold_index < kCoefficients.size(); ++threshold_index) {
     const auto& product = products[threshold_index];
     if (product.total_chip_instances == 0) continue;

@@ -1,11 +1,12 @@
 /*
 
-./build/chip_rate_scan -i data/bkg_apr -o plots/chip_occupancy/chip_rate_scan.root
+./build/data_rate_scan -i data/bkg_apr -o plots/data_rates/data_rate_scan.root
 
 */
 
 #include <TCanvas.h>
 #include <TColor.h>
+#include <TDirectory.h>
 #include <TFile.h>
 #include <TH1.h>
 #include <TH1D.h>
@@ -22,7 +23,6 @@
 
 #include <algorithm>
 #include <array>
-#include <cmath>
 #include <cstdio>
 #include <cstdint>
 #include <filesystem>
@@ -30,7 +30,6 @@
 #include <string>
 #include <string_view>
 #include <unordered_map>
-#include <unordered_set>
 #include <vector>
 
 namespace fs = std::filesystem;
@@ -40,21 +39,24 @@ namespace {
 // Constants and structs
 // ----------------------------------------------------------------------------------
 constexpr const char* kHitCollection = "LFHCALHits";
-constexpr int kNReadoutLayers = 7;
 constexpr double kEventWindowSec = 2e-6;
 constexpr double kHistMinimum = 0.8;
+constexpr double kOverheadBits = 128.0;
+constexpr double kBitsPerHit = 32.0;
+constexpr double kSamplesPerEvent = 4.0;
 constexpr std::array<double, 3> kCoefficients = {0.1, 0.5, 1.5};
 const std::array<int, kCoefficients.size()> kColors = {kBlue + 1, kBlack, kRed + 1};
 
 struct ThresholdProducts {
   TH1D* h_rate = nullptr;
-  std::unordered_map<rates::LFHCALChipID, std::uint64_t, rates::LFHCALChipIDHash> chip_passes;
-  double p95_rate_hz = 0.0;
-  double p99_rate_hz = 0.0;
-  double max_rate_hz = 0.0;
+  // chip_bits[chip]: summed payload bits accumulated across the full sample.
+  std::unordered_map<rates::LFHCALChipID, double, rates::LFHCALChipIDHash> chip_bits;
+  double p95_rate_gbps = 0.0;
+  double p99_rate_gbps = 0.0;
 };
 
 struct EventChip {
+  // channel_energy[channel]: summed channel signal inside one chip for one event.
   std::unordered_map<rates::LFHCALChannelID, double, rates::LFHCALChannelIDHash> channel_energy;
 };
 
@@ -108,75 +110,54 @@ std::string threshold_tag(double threshold_mip) {
   return buffer;
 }
 
+// Turn a percentile request into the corresponding sorted-data index.
 std::size_t percentile_index(std::size_t n_values, double percentile) {
   if (n_values == 0) return 0;
   return static_cast<std::size_t>(percentile * static_cast<double>(n_values - 1));
 }
 
-void draw_single(TFile& output, const ThresholdProducts& product, double threshold_mip) {
-  output.cd();
 
-  TCanvas canvas(("c_chip_rate_" + threshold_tag(threshold_mip)).c_str(),
-                 ("Chip rate distribution, threshold " + threshold_label(threshold_mip) + ";rate [Hz/chip];chips").c_str(),
+std::string legend_label(double threshold_mip, double percentile_rate_gbps, int percentile) {
+  char buffer[160];
+  std::snprintf(buffer,
+                sizeof(buffer),
+                "%s (p%d %.3g Gb/s)",
+                threshold_label(threshold_mip).c_str(),
+                percentile,
+                percentile_rate_gbps);
+  return buffer;
+}
+
+void draw_single(TDirectory* dir, TH1D* hist, double threshold_mip) {
+  dir->cd();
+
+  TCanvas canvas(("c_data_rate_" + threshold_tag(threshold_mip)).c_str(),
+                 ("Data rate distribution, threshold " + threshold_label(threshold_mip) + ";data rate [Gb/s];chips").c_str(),
                  1000,
                  800);
   canvas.SetLogx();
   canvas.SetLogy();
 
-  auto* hist = product.h_rate;
   hist->SetStats(false);
   hist->SetLineWidth(2);
   hist->SetMinimum(kHistMinimum);
   hist->Draw("hist");
-
-  const double max_y = hist->GetMaximum() > 0.0 ? 1.25 * hist->GetMaximum() : 1.0;
-  auto draw_marker = [&](double x_value, int color) {
-    if (x_value <= 0.0) return;
-    auto* line = new TLine(x_value, kHistMinimum, x_value, max_y);
-    line->SetLineColor(color);
-    line->SetLineStyle(2);
-    line->SetLineWidth(2);
-    line->Draw();
-  };
-
-  draw_marker(product.p95_rate_hz, kBlue + 1);
-  draw_marker(product.p99_rate_hz, kRed + 1);
-  draw_marker(product.max_rate_hz, kGreen + 2);
-
-  TLegend legend(0.62, 0.72, 0.88, 0.88);
-  legend.SetBorderSize(0);
-  legend.SetFillStyle(0);
-  legend.AddEntry(hist, threshold_label(threshold_mip).c_str(), "l");
-  TLine p95_line;
-  p95_line.SetLineColor(kBlue + 1);
-  p95_line.SetLineStyle(2);
-  p95_line.SetLineWidth(2);
-  legend.AddEntry(&p95_line, "p95", "l");
-  TLine p99_line;
-  p99_line.SetLineColor(kRed + 1);
-  p99_line.SetLineStyle(2);
-  p99_line.SetLineWidth(2);
-  legend.AddEntry(&p99_line, "p99", "l");
-  TLine max_line;
-  max_line.SetLineColor(kGreen + 2);
-  max_line.SetLineStyle(2);
-  max_line.SetLineWidth(2);
-  legend.AddEntry(&max_line, "max", "l");
-  legend.Draw();
   canvas.Write();
 }
 
-void draw_overlay(TFile& output, const std::array<ThresholdProducts, kCoefficients.size()>& products) {
-  output.cd();
+void draw_overlay(TDirectory* dir,
+                  const std::array<ThresholdProducts, kCoefficients.size()>& products,
+                  int percentile) {
+  dir->cd();
 
-  TCanvas canvas("c_chip_rate_threshold_overlay",
-                 "Chip rate distributions;rate [Hz/chip];chips",
+  TCanvas canvas(("c_data_rate_threshold_overlay_p" + std::to_string(percentile)).c_str(),
+                 "Data rate distributions;data rate [Gb/s];chips",
                  1000,
                  800);
   canvas.SetLogx();
   canvas.SetLogy();
 
-  TLegend legend(0.68, 0.72, 0.88, 0.88);
+  TLegend legend(0.62, 0.68, 0.88, 0.88);
   legend.SetBorderSize(0);
   legend.SetFillStyle(0);
 
@@ -190,14 +171,31 @@ void draw_overlay(TFile& output, const std::array<ThresholdProducts, kCoefficien
   for (std::size_t threshold_index = 0; threshold_index < kCoefficients.size(); ++threshold_index) {
     auto* hist = products[threshold_index].h_rate;
     hist->SetStats(false);
-    hist->SetTitle("Chip rate distributions;rate [Hz/chip];chips");
     hist->SetLineColor(kColors[threshold_index]);
     hist->SetLineWidth(2);
     hist->SetMinimum(kHistMinimum);
     hist->SetMaximum(1.25 * max_y);
+    hist->SetTitle("Data rate distributions;data rate [Gb/s];chips");
     hist->Draw(drew ? "hist same" : "hist");
     drew = true;
-    legend.AddEntry(hist, threshold_label(kCoefficients[threshold_index]).c_str(), "l");
+
+    const double percentile_rate_gbps = percentile == 95 ? products[threshold_index].p95_rate_gbps
+                                                         : products[threshold_index].p99_rate_gbps;
+    legend.AddEntry(hist,
+                    legend_label(kCoefficients[threshold_index], percentile_rate_gbps, percentile).c_str(),
+                    "l");
+  }
+
+  for (std::size_t threshold_index = 0; threshold_index < kCoefficients.size(); ++threshold_index) {
+    const auto& product = products[threshold_index];
+    const double percentile_rate_gbps = percentile == 95 ? product.p95_rate_gbps : product.p99_rate_gbps;
+    if (percentile_rate_gbps <= 0.0) continue;
+
+    auto* line = new TLine(percentile_rate_gbps, kHistMinimum, percentile_rate_gbps, 1.25 * max_y);
+    line->SetLineColor(kColors[threshold_index]);
+    line->SetLineStyle(2);
+    line->SetLineWidth(2);
+    line->Draw();
   }
 
   legend.Draw();
@@ -223,12 +221,12 @@ int main(int argc, char* argv[]) {
   fs::path output_path = args.output_file;
   if (output_path.has_parent_path()) fs::create_directories(output_path.parent_path());
 
-  const auto rate_edges = rates::log_edges(240, 1.0, 1e7);
+  const auto rate_edges = rates::log_edges(240, 1.0e-4, 10.0);
   std::array<ThresholdProducts, kCoefficients.size()> products{};
   for (std::size_t threshold_index = 0; threshold_index < kCoefficients.size(); ++threshold_index) {
-    const std::string name = "h_chip_rate_" + threshold_tag(kCoefficients[threshold_index]);
-    const std::string title = "LFHCAL per-chip rate, threshold " + threshold_label(kCoefficients[threshold_index]) +
-        ";rate [Hz/chip];chips";
+    const std::string name = "h_data_rate_" + threshold_tag(kCoefficients[threshold_index]);
+    const std::string title = "LFHCAL per-chip data rate, threshold " + threshold_label(kCoefficients[threshold_index]) +
+        ";data rate [Gb/s];chips";
     products[threshold_index].h_rate = new TH1D(name.c_str(), title.c_str(), 240, rate_edges.data());
   }
 
@@ -255,7 +253,7 @@ int main(int argc, char* argv[]) {
       std::unordered_map<rates::LFHCALChipID, EventChip, rates::LFHCALChipIDHash> event_chips;
       const auto& hits = frame.get<edm4hep::SimCalorimeterHitCollection>(kHitCollection);
 
-      // For each event, loop all hits.
+      // Loop all hits in this event.
       for (const auto& hit : hits) {
         const auto cell_id = static_cast<std::uint64_t>(hit.getCellID());
         if (decoder.is_passive(cell_id)) continue;
@@ -263,14 +261,12 @@ int main(int argc, char* argv[]) {
         // Increment the corresponding channel's energy for the corresponding readout chip.
         const auto channel = decoder.channel(cell_id);
         auto& event_chip = event_chips[decoder.decode_chip(cell_id)];
-
         event_chip.channel_energy[channel] += hit.getEnergy();
       }
 
-      std::array<std::unordered_set<rates::LFHCALChipID, rates::LFHCALChipIDHash>, kCoefficients.size()> fired_chips;
-
       // After processing all hits into corresponding channels and chips, loop over all chips.
       for (const auto& [chip, event_chip] : event_chips) {
+        std::array<int, kCoefficients.size()> active_counts{};
 
         // Per chip, loop over all channels.
         for (const auto& [channel, energy_gev] : event_chip.channel_energy) {
@@ -279,16 +275,19 @@ int main(int argc, char* argv[]) {
           // Per channel, loop over all thresholds.
           for (std::size_t threshold_index = 0; threshold_index < kCoefficients.size(); ++threshold_index) {
 
-            // If channel energy meets threshold, count chip as fired.
+            // If channel energy meets threshold, count the corresponding payload word.
             if (energy_gev <= kCoefficients[threshold_index] * mip_gev) continue;
-            fired_chips[threshold_index].insert(chip);
+            ++active_counts[threshold_index];
           }
         }
-      }
 
-      for (std::size_t threshold_index = 0; threshold_index < kCoefficients.size(); ++threshold_index) {
-        for (const auto& chip : fired_chips[threshold_index]) {
-          ++products[threshold_index].chip_passes[chip];
+        // After summing all fired channels in this chip for this event, convert it into data rate.
+        for (std::size_t threshold_index = 0; threshold_index < kCoefficients.size(); ++threshold_index) {
+          // Data size = (128 overhead bit + 32 bits per fired channel) * 4 samples
+          if ((active_counts[threshold_index]) <= 0) continue;
+          const double event_bits =
+              (kOverheadBits + kBitsPerHit * static_cast<double>(active_counts[threshold_index])) * kSamplesPerEvent;
+          products[threshold_index].chip_bits[chip] += event_bits;
         }
       }
     }
@@ -304,22 +303,23 @@ int main(int argc, char* argv[]) {
 
   // Loop over all thresholds' accumulated products across the full sample.
   for (auto& product : products) {
-    std::vector<double> rates_hz;
+    std::vector<double> rates_gbps;
 
     // Per threshold, loop through all accumulated chips within.
-    for (const auto& [chip, passes] : product.chip_passes) {
+    for (const auto& [chip, total_bits] : product.chip_bits) {
       (void)chip;
 
       // Compute stats.
-      const double rate_hz = static_cast<double>(passes) / total_time_sec;
-      product.h_rate->Fill(rate_hz);
-      rates_hz.push_back(rate_hz);
+      const double rate_gbps = (total_bits / total_time_sec) / 1.0e9;
+      product.h_rate->Fill(rate_gbps);
+      rates_gbps.push_back(rate_gbps);
     }
-    if (rates_hz.empty()) continue;
-    std::sort(rates_hz.begin(), rates_hz.end());
-    product.p95_rate_hz = rates_hz[percentile_index(rates_hz.size(), 0.95)];
-    product.p99_rate_hz = rates_hz[percentile_index(rates_hz.size(), 0.99)];
-    product.max_rate_hz = rates_hz.back();
+    if (rates_gbps.empty()) continue;
+
+    // Sort so percentile lookup becomes a simple indexed read.
+    std::sort(rates_gbps.begin(), rates_gbps.end());
+    product.p95_rate_gbps = rates_gbps[percentile_index(rates_gbps.size(), 0.95)];
+    product.p99_rate_gbps = rates_gbps[percentile_index(rates_gbps.size(), 0.99)];
   }
 
   TFile output(args.output_file.c_str(), "RECREATE");
@@ -334,10 +334,12 @@ int main(int argc, char* argv[]) {
     product.h_rate->Write();
   }
 
+  auto* canvas_dir = output.mkdir("plots");
   for (std::size_t threshold_index = 0; threshold_index < kCoefficients.size(); ++threshold_index) {
-    draw_single(output, products[threshold_index], kCoefficients[threshold_index]);
+    draw_single(canvas_dir, products[threshold_index].h_rate, kCoefficients[threshold_index]);
   }
-  draw_overlay(output, products);
+  draw_overlay(canvas_dir, products, 95);
+  draw_overlay(canvas_dir, products, 99);
 
   output.Close();
   return 0;

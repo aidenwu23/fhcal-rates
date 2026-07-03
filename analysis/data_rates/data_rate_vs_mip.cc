@@ -1,10 +1,11 @@
 /*
 
-./build/chip_rate_vs_mip -i data/bkg_apr -o plots/chip_occupancy/chip_rate_vs_mip.root
+./build/data_rate_vs_mip -i data/bkg_apr -o plots/data_rates/data_rate_vs_mip.root
 
 */
 
 #include <TCanvas.h>
+#include <TColor.h>
 #include <TFile.h>
 #include <TGraph.h>
 #include <TH1.h>
@@ -26,7 +27,6 @@
 #include <string>
 #include <string_view>
 #include <unordered_map>
-#include <unordered_set>
 #include <vector>
 
 namespace fs = std::filesystem;
@@ -36,14 +36,16 @@ namespace {
 // Constants and structs
 // ----------------------------------------------------------------------------------
 constexpr const char* kHitCollection = "LFHCALHits";
-constexpr int kNReadoutLayers = 7;
 constexpr double kEventWindowSec = 2e-6;
+constexpr double kOverheadBits = 128.0;
+constexpr double kBitsPerHit = 32.0;
+constexpr double kSamplesPerEvent = 4.0;
 constexpr std::array<double, 16> kCoefficients = {0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0, 1.1, 1.2, 1.3, 1.4, 1.5};
 constexpr std::array<double, 2> kPercentiles = {0.95, 0.99};
 
 struct ThresholdProducts {
-  // chip_passes[chip]: number of events where this chip fired.
-  std::unordered_map<rates::LFHCALChipID, std::uint64_t, rates::LFHCALChipIDHash> chip_passes;
+  // chip_bits[chip]: summed payload bits accumulated across the full sample.
+  std::unordered_map<rates::LFHCALChipID, double, rates::LFHCALChipIDHash> chip_bits;
 };
 
 struct EventChip {
@@ -101,29 +103,57 @@ std::string percentile_tag(double percentile) {
 
 std::string percentile_title(double percentile) {
   return std::to_string(static_cast<int>(percentile * 100.0 + 0.5)) +
-         "th percentile of chip rates vs MIP coefficient;MIP coefficient;rate [Hz/chip]";
+         "th percentile of data rate vs MIP coefficient;MIP coefficient;data rate [Gb/s]";
 }
 
-void draw_graph(TFile& output,
-                double percentile,
-                const std::array<double, kCoefficients.size()>& values) {
+
+void draw_mean_graph(TFile& output,
+                     const std::array<double, kCoefficients.size()>& values) {
+  auto* dir = output.mkdir("mean");
+  dir->cd();
+
+  TCanvas canvas("c_mean_data_rate_vs_mip",
+                 "Mean data rate vs MIP coefficient;MIP coefficient;data rate [Gb/s]",
+                 1000,
+                 800);
+  canvas.SetGrid();
+  canvas.SetLogy();
+
+  auto* frame = canvas.DrawFrame(kCoefficients.front(), 1.0e-4, kCoefficients.back(), 10.0);
+  frame->SetTitle("Mean data rate vs MIP coefficient;MIP coefficient;data rate [Gb/s]");
+  frame->SetStats(false);
+
+  TGraph graph(static_cast<int>(kCoefficients.size()), kCoefficients.data(), values.data());
+  graph.SetName("g_mean_data_rate_vs_mip");
+  graph.SetLineWidth(2);
+  graph.SetMarkerStyle(20);
+  graph.Draw("LP SAME");
+
+  canvas.Write();
+  graph.Write();
+  output.cd();
+}
+
+void draw_percentile_graph(TFile& output,
+                           double percentile,
+                           const std::array<double, kCoefficients.size()>& values) {
   // Keep p95 and p99 products in separate top-level folders.
   auto* dir = output.mkdir(percentile_tag(percentile).c_str());
   dir->cd();
 
-  TCanvas canvas(("c_" + percentile_tag(percentile) + "_chip_rate_vs_mip").c_str(),
+  TCanvas canvas(("c_" + percentile_tag(percentile) + "_data_rate_vs_mip").c_str(),
                  percentile_title(percentile).c_str(),
                  1000,
                  800);
-  canvas.SetLogy();
   canvas.SetGrid();
+  canvas.SetLogy();
 
-  auto* frame = canvas.DrawFrame(kCoefficients.front(), 3000.0, kCoefficients.back(), 3.0e5);
+  auto* frame = canvas.DrawFrame(kCoefficients.front(), 1.0e-4, kCoefficients.back(), 10.0);
   frame->SetTitle(percentile_title(percentile).c_str());
   frame->SetStats(false);
 
   TGraph graph(static_cast<int>(kCoefficients.size()), kCoefficients.data(), values.data());
-  graph.SetName(("g_" + percentile_tag(percentile) + "_chip_rate_vs_mip").c_str());
+  graph.SetName(("g_" + percentile_tag(percentile) + "_data_rate_vs_mip").c_str());
   graph.SetLineWidth(2);
   graph.SetMarkerStyle(20);
   graph.Draw("LP SAME");
@@ -134,45 +164,55 @@ void draw_graph(TFile& output,
 }
 
 void draw_overlay(TFile& output,
-                  const std::array<std::array<double, kCoefficients.size()>, kPercentiles.size()>& values) {
+                  const std::array<double, kCoefficients.size()>& mean_values,
+                  const std::array<std::array<double, kCoefficients.size()>, kPercentiles.size()>& percentile_values) {
   output.cd();
 
-  TCanvas canvas("c_chip_rate_vs_mip_overlay",
-                 "Percentiles of chip rates vs MIP coefficient;MIP coefficient;rate [Hz/chip]",
+  TCanvas canvas("c_data_rate_vs_mip_overlay",
+                 "Data rate vs MIP coefficient;MIP coefficient;data rate [Gb/s]",
                  1000,
                  800);
-  canvas.SetLogy();
   canvas.SetGrid();
+  canvas.SetLogy();
 
-  auto* frame = canvas.DrawFrame(kCoefficients.front(), 3000.0, kCoefficients.back(), 3.0e5);
-  frame->SetTitle("Percentiles of chip rates vs MIP coefficient;MIP coefficient;rate [Hz/chip]");
+  auto* frame = canvas.DrawFrame(kCoefficients.front(), 1.0e-4, kCoefficients.back(), 10.0);
+  frame->SetTitle("Data rate vs MIP coefficient;MIP coefficient;data rate [Gb/s]");
   frame->SetStats(false);
 
-  TLegend legend(0.60, 0.72, 0.88, 0.88);
+  TLegend legend(0.58, 0.72, 0.88, 0.88);
   legend.SetBorderSize(0);
   legend.SetFillStyle(0);
 
-  TGraph g95(static_cast<int>(kCoefficients.size()), kCoefficients.data(), values[0].data());
-  g95.SetName("g_p95_chip_rate_vs_mip_overlay");
+  TGraph g_mean(static_cast<int>(kCoefficients.size()), kCoefficients.data(), mean_values.data());
+  g_mean.SetName("g_mean_data_rate_vs_mip_overlay");
+  g_mean.SetLineWidth(2);
+  g_mean.SetLineColor(kBlack);
+  g_mean.SetMarkerColor(kBlack);
+  g_mean.SetMarkerStyle(20);
+  g_mean.Draw("LP SAME");
+  legend.AddEntry(&g_mean, "mean", "lp");
+
+  TGraph g95(static_cast<int>(kCoefficients.size()), kCoefficients.data(), percentile_values[0].data());
+  g95.SetName("g_p95_data_rate_vs_mip_overlay");
   g95.SetLineWidth(2);
   g95.SetLineColor(kBlue + 1);
   g95.SetMarkerColor(kBlue + 1);
-  g95.SetMarkerStyle(20);
-
-  TGraph g99(static_cast<int>(kCoefficients.size()), kCoefficients.data(), values[1].data());
-  g99.SetName("g_p99_chip_rate_vs_mip_overlay");
-  g99.SetLineWidth(2);
-  g99.SetLineColor(kRed + 1);
-  g99.SetMarkerColor(kRed + 1);
-  g99.SetMarkerStyle(21);
-  g99.Draw("LP SAME");
-  legend.AddEntry(&g99, "99th percentile", "lp");
-
+  g95.SetMarkerStyle(21);
   g95.Draw("LP SAME");
   legend.AddEntry(&g95, "95th percentile", "lp");
 
+  TGraph g99(static_cast<int>(kCoefficients.size()), kCoefficients.data(), percentile_values[1].data());
+  g99.SetName("g_p99_data_rate_vs_mip_overlay");
+  g99.SetLineWidth(2);
+  g99.SetLineColor(kRed + 1);
+  g99.SetMarkerColor(kRed + 1);
+  g99.SetMarkerStyle(22);
+  g99.Draw("LP SAME");
+  legend.AddEntry(&g99, "99th percentile", "lp");
+
   legend.Draw();
   canvas.Write();
+  g_mean.Write();
   g95.Write();
   g99.Write();
 }
@@ -196,13 +236,13 @@ int main(int argc, char* argv[]) {
   fs::path output_path = args.output_file;
   if (output_path.has_parent_path()) fs::create_directories(output_path.parent_path());
 
-  // products[threshold]: persistent event-pass counts for one MIP choice.
+  // products[threshold]: persistent bit sums for one MIP choice.
   std::array<ThresholdProducts, kCoefficients.size()> products{};
   const rates::LFHCALCellIDDecoder decoder;
   std::uint64_t n_events = 0;
   rates::FileProgress progress(files.size(), std::cerr);
 
-  // Loop over all files.
+  // Loop all files.
   for (const auto& path : files) {
     progress.tick();
     podio::ROOTReader reader;
@@ -222,7 +262,7 @@ int main(int argc, char* argv[]) {
       std::unordered_map<rates::LFHCALChipID, EventChip, rates::LFHCALChipIDHash> event_chips;
       const auto& hits = frame.get<edm4hep::SimCalorimeterHitCollection>(kHitCollection);
 
-      // Loop hits.
+      // Loop all hits in this event.
       for (const auto& hit : hits) {
         const auto cell_id = static_cast<std::uint64_t>(hit.getCellID());
         if (decoder.is_passive(cell_id)) continue;
@@ -230,17 +270,14 @@ int main(int argc, char* argv[]) {
         // Increment the corresponding channel's energy for the corresponding readout chip.
         const auto channel = decoder.channel(cell_id);
         auto& event_chip = event_chips[decoder.decode_chip(cell_id)];
-
         event_chip.channel_energy[channel] += hit.getEnergy();
       }
 
-      // fired_chips[threshold]: which chips fired in this event for a certain threshold.
-      std::array<std::unordered_set<rates::LFHCALChipID, rates::LFHCALChipIDHash>, kCoefficients.size()> fired_chips;
-
       // After processing all hits into corresponding channels and chips, loop over all chips.
       for (const auto& [chip, event_chip] : event_chips) {
+        std::array<int, kCoefficients.size()> active_counts{};
 
-        // For each module, loop through all channels.
+        // For each chip, loop through all channels.
         for (const auto& [channel, energy_gev] : event_chip.channel_energy) {
           const double mip_gev = rates::mip_energy_gev(channel.rlayerz);
 
@@ -249,17 +286,18 @@ int main(int argc, char* argv[]) {
 
             // Skip if channel energy doesn't pass threshold.
             if (energy_gev <= kCoefficients[threshold_index] * mip_gev) continue;
-
-            // Otherwise mark the chip as fired.
-            fired_chips[threshold_index].insert(chip); // Repeated inserts keep one entry (unordered set)
+            ++active_counts[threshold_index];
           }
         }
-      }
 
-      // Promote this event-level fired set into the full-sample counters.
-      for (std::size_t threshold_index = 0; threshold_index < kCoefficients.size(); ++threshold_index) {
-        for (const auto& chip : fired_chips[threshold_index]) {
-          ++products[threshold_index].chip_passes[chip];
+        // After summing all fired channels in this chip, convert it into data rate.
+        // After summing all fired channels in this chip for this event, convert it into data rate.
+        for (std::size_t threshold_index = 0; threshold_index < kCoefficients.size(); ++threshold_index) {
+          // Data size = (128 overhead bits + 32 bits per fired channel) * 4 samples
+          if ((active_counts[threshold_index]) <= 0) continue;
+          const double event_bits =
+              (kOverheadBits + kBitsPerHit * static_cast<double>(active_counts[threshold_index])) * kSamplesPerEvent;
+          products[threshold_index].chip_bits[chip] += event_bits;
         }
       }
     }
@@ -271,25 +309,33 @@ int main(int argc, char* argv[]) {
     return 1;
   }
 
-  // Convert event counts into rates, then extract the requested percentiles.
+  // Convert accumulated bits into data rates, then extract mean and percentiles.
   const double total_time_sec = static_cast<double>(n_events) * kEventWindowSec;
+  std::array<double, kCoefficients.size()> mean_values{};
   std::array<std::array<double, kCoefficients.size()>, kPercentiles.size()> percentile_values{};
 
-  // Loop thru each threshold MIP value.
+  // Loop over all thresholds' accumulated products across the full sample.
   for (std::size_t threshold_index = 0; threshold_index < kCoefficients.size(); ++threshold_index) {
-    std::vector<double> rates_hz;
+    std::vector<double> rates_gbps;
 
-    // Collect one rate value from every chip that ever passed.
-    for (const auto& [chip, passes] : products[threshold_index].chip_passes) {
+    // Per threshold, loop through all accumulated chips within.
+    for (const auto& [chip, total_bits] : products[threshold_index].chip_bits) {
       (void)chip;
-      rates_hz.push_back(static_cast<double>(passes) / total_time_sec);
+      rates_gbps.push_back((total_bits / total_time_sec) / 1.0e9);
     }
-    if (rates_hz.empty()) continue;
+    if (rates_gbps.empty()) continue;
 
-    // Sort once so percentile lookup becomes a simple indexed read.
-    std::sort(rates_hz.begin(), rates_hz.end());
+    double sum = 0.0;
+    for (const double rate_gbps : rates_gbps) {
+      sum += rate_gbps;
+    }
+    mean_values[threshold_index] = sum / static_cast<double>(rates_gbps.size());
+
+    // Sort so percentile lookup becomes a simple indexed read.
+    std::sort(rates_gbps.begin(), rates_gbps.end());
     for (std::size_t percentile_slot = 0; percentile_slot < kPercentiles.size(); ++percentile_slot) {
-      percentile_values[percentile_slot][threshold_index] = rates_hz[percentile_index(rates_hz.size(), kPercentiles[percentile_slot])];
+      percentile_values[percentile_slot][threshold_index] =
+          rates_gbps[percentile_index(rates_gbps.size(), kPercentiles[percentile_slot])];
     }
   }
 
@@ -299,11 +345,11 @@ int main(int argc, char* argv[]) {
     return 1;
   }
 
-  // Write one graph under p95 and one under p99.
+  draw_mean_graph(output, mean_values);
   for (std::size_t percentile_slot = 0; percentile_slot < kPercentiles.size(); ++percentile_slot) {
-    draw_graph(output, kPercentiles[percentile_slot], percentile_values[percentile_slot]);
+    draw_percentile_graph(output, kPercentiles[percentile_slot], percentile_values[percentile_slot]);
   }
-  draw_overlay(output, percentile_values);
+  draw_overlay(output, mean_values, percentile_values);
 
   output.Close();
   return 0;

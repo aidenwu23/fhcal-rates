@@ -154,7 +154,7 @@ int main(int argc, char* argv[]) {
       // active_counts[chip]: how many distinct channels passed threshold in this chip this event.
       std::unordered_map<rates::LFHCALChipID, int, rates::LFHCALChipIDHash> active_counts;
 
-      // Loop over all chips.
+      // After processing all hits into corresponding channels and chips, loop over all chips.
       for (const auto& [chip, event_chip] : event_chips) {
         int active_count = 0;
 

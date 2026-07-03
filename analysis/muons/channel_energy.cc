@@ -105,7 +105,7 @@ int main(int argc, char* argv[]) {
   for (int layer = 0; layer < kNReadoutLayers; ++layer) {
     h_channel_energy[layer] = new TH1D(
         ("h_channel_energy_layer" + std::to_string(layer)).c_str(),
-        ("Muon channel energy per event, layer " + std::to_string(layer) + ";channel energy [GeV];channels").c_str(),
+        ("Muon channel energy per event, layer " + std::to_string(layer) + ";channel energy [GeV];counts").c_str(),
         200,
         0.0,
         0.05);
