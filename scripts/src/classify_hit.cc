@@ -2,7 +2,7 @@
 
 #include <edm4hep/MCParticle.h>
 
-namespace br {
+namespace rates {
 
 int origin_index(int status) {
   // Even when generatorStatus is a null-like entry such as 0, 2000, 3000, ...
@@ -50,9 +50,9 @@ BackgroundClass classify_background_class(int status) {
   */
 }
 
-}  // namespace br
+}  // namespace rates
 
-int br::dominant_status(const edm4hep::SimCalorimeterHit& hit) {
+int rates::dominant_status(const edm4hep::SimCalorimeterHit& hit) {
   double biggest_contribution = -1.0;
   int best_status = 0;
 

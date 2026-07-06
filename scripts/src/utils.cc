@@ -4,7 +4,14 @@
 #include <cmath>
 #include <ostream>
 
-namespace br {
+namespace rates {
+
+namespace {
+
+constexpr double MIP_1 = 3.5e-3;
+constexpr double MIP_2 = 7.0e-3;
+
+}  // namespace
 
 bool has_collection(const podio::Frame& frame, const std::string& name) {
   for (const auto& available : frame.getAvailableCollections()) {
@@ -35,6 +42,10 @@ std::vector<double> log_edges(int bins, double low, double high) {
   return edges;
 }
 
+double mip_energy_gev(int layer) {
+  return layer < 2 ? MIP_1 : MIP_2;
+}
+
 FileProgress::FileProgress(std::size_t total_files, std::ostream& os)
     : total_files_(total_files), os_(os) {}
 
@@ -43,4 +54,4 @@ void FileProgress::tick() {
   os_ << "\r" << current_file_ << "/" << total_files_ << " files read." << std::flush;
 }
 
-}  // namespace br
+}  // namespace rates

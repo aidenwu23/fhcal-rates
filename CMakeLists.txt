@@ -16,15 +16,19 @@ find_package(EDM4HEP REQUIRED)
 
 add_subdirectory(scripts/data_prep)
 
-add_subdirectory(analysis/hit-origins)
+add_subdirectory(lfhcal_analysis/hit-origins)
 
-add_subdirectory(analysis/occupancy)
+add_subdirectory(lfhcal_analysis/channel_occupancy)
 
-add_subdirectory(analysis/performance)
+add_subdirectory(lfhcal_analysis/chip_occupancy)
 
-add_subdirectory(analysis/muons)
+add_subdirectory(lfhcal_analysis/data_rates)
 
-add_executable(channel_count analysis/channel_count.cc)
+add_subdirectory(lfhcal_analysis/performance)
+
+add_subdirectory(lfhcal_analysis/muons)
+
+add_executable(channel_count lfhcal_analysis/channel_count.cc)
 target_compile_features(channel_count PRIVATE cxx_std_17)
 target_include_directories(channel_count PRIVATE ${CMAKE_SOURCE_DIR}/scripts/include)
 target_sources(channel_count PRIVATE ${CMAKE_SOURCE_DIR}/scripts/src/utils.cc ${CMAKE_SOURCE_DIR}/scripts/src/decode_cell_id.cc)

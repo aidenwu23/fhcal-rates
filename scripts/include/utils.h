@@ -8,11 +8,12 @@
 #include <string>
 #include <vector>
 
-namespace br {
+namespace rates {
 
 bool has_collection(const podio::Frame& frame, const std::string& name);
 std::vector<std::filesystem::path> find_root_files(const std::string& input_dir);
 std::vector<double> log_edges(int bins, double low, double high);
+double mip_energy_gev(int layer);
 
 class FileProgress {
  public:
@@ -25,4 +26,4 @@ class FileProgress {
   std::ostream& os_;
 };
 
-}  // namespace br
+}  // namespace rates

@@ -146,14 +146,14 @@ void draw_overlay(TFile& output,
   dir->cd();
 
   TCanvas canvas(("c_" + threshold_tag(threshold_mip) + "_data_rate_vs_radius").c_str(),
-                 ("Average chip data rate vs radius, threshold " + threshold_label(threshold_mip) + ";radius [mm];average chip data rate [Gb/s]").c_str(),
+                 ("Chip data rate vs radius, threshold " + threshold_label(threshold_mip) + ";radius [mm];chip data rate [Gb/s]").c_str(),
                  1000,
                  800);
   canvas.SetGrid();
   canvas.SetLogy();
 
   auto* frame = canvas.DrawFrame(350.0, 1.0e-6, 2850.0, 4.0e-2);
-  frame->SetTitle(("Average chip data rate vs radius, threshold " + threshold_label(threshold_mip) + ";radius [mm];average chip data rate [Gb/s]").c_str());
+  frame->SetTitle(("Chip data rate vs radius, threshold " + threshold_label(threshold_mip) + ";radius [mm];chip data rate [Gb/s]").c_str());
   frame->SetStats(false);
 
   TLegend legend(0.62, 0.72, 0.88, 0.88);

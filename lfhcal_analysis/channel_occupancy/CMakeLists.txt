@@ -9,7 +9,6 @@ target_include_directories(channel_occupancy PRIVATE ${CMAKE_SOURCE_DIR}/scripts
 target_sources(channel_occupancy PRIVATE
   ${CMAKE_SOURCE_DIR}/scripts/src/utils.cc
   ${CMAKE_SOURCE_DIR}/scripts/src/decode_cell_id.cc
-  ${CMAKE_SOURCE_DIR}/scripts/src/smooth_hists.cc
   ${CMAKE_SOURCE_DIR}/scripts/src/classify_hit.cc
   ${CMAKE_CURRENT_SOURCE_DIR}/src/shared.cc
   ${CMAKE_CURRENT_SOURCE_DIR}/src/reco.cc

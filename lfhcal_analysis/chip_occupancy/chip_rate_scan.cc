@@ -108,6 +108,12 @@ std::string threshold_tag(double threshold_mip) {
   return buffer;
 }
 
+std::string rate_label(const char* name, double rate_hz) {
+  char buffer[128];
+  std::snprintf(buffer, sizeof(buffer), "%s = %.3g Hz", name, rate_hz);
+  return buffer;
+}
+
 std::size_t percentile_index(std::size_t n_values, double percentile) {
   if (n_values == 0) return 0;
   return static_cast<std::size_t>(percentile * static_cast<double>(n_values - 1));
@@ -117,7 +123,7 @@ void draw_single(TFile& output, const ThresholdProducts& product, double thresho
   output.cd();
 
   TCanvas canvas(("c_chip_rate_" + threshold_tag(threshold_mip)).c_str(),
-                 ("Chip rate distribution, threshold " + threshold_label(threshold_mip) + ";rate [Hz/chip];chips").c_str(),
+                 ("Chip rate histogram at " + threshold_label(threshold_mip) + " threshold;rate [Hz];chips").c_str(),
                  1000,
                  800);
   canvas.SetLogx();
@@ -127,6 +133,7 @@ void draw_single(TFile& output, const ThresholdProducts& product, double thresho
   hist->SetStats(false);
   hist->SetLineWidth(2);
   hist->SetMinimum(kHistMinimum);
+  hist->SetTitle(("Chip rate histogram at " + threshold_label(threshold_mip) + " threshold;rate [Hz];chips").c_str());
   hist->Draw("hist");
 
   const double max_y = hist->GetMaximum() > 0.0 ? 1.25 * hist->GetMaximum() : 1.0;
@@ -146,22 +153,21 @@ void draw_single(TFile& output, const ThresholdProducts& product, double thresho
   TLegend legend(0.62, 0.72, 0.88, 0.88);
   legend.SetBorderSize(0);
   legend.SetFillStyle(0);
-  legend.AddEntry(hist, threshold_label(threshold_mip).c_str(), "l");
   TLine p95_line;
   p95_line.SetLineColor(kBlue + 1);
   p95_line.SetLineStyle(2);
   p95_line.SetLineWidth(2);
-  legend.AddEntry(&p95_line, "p95", "l");
+  legend.AddEntry(&p95_line, rate_label("p95", product.p95_rate_hz).c_str(), "l");
   TLine p99_line;
   p99_line.SetLineColor(kRed + 1);
   p99_line.SetLineStyle(2);
   p99_line.SetLineWidth(2);
-  legend.AddEntry(&p99_line, "p99", "l");
+  legend.AddEntry(&p99_line, rate_label("p99", product.p99_rate_hz).c_str(), "l");
   TLine max_line;
   max_line.SetLineColor(kGreen + 2);
   max_line.SetLineStyle(2);
   max_line.SetLineWidth(2);
-  legend.AddEntry(&max_line, "max", "l");
+  legend.AddEntry(&max_line, rate_label("max", product.max_rate_hz).c_str(), "l");
   legend.Draw();
   canvas.Write();
 }

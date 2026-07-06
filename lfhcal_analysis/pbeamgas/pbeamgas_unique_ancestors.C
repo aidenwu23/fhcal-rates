@@ -1,6 +1,6 @@
 /*
 
-root -l -b -q 'analysis/pbeamgas/pbeamgas_unique_ancestors.C("data_directory/path")'
+root -l -b -q 'lfhcal_analysis/pbeamgas/pbeamgas_unique_ancestors.C("data_directory/path")'
 
 */
 

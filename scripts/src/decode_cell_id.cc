@@ -2,7 +2,7 @@
 
 #include <stdexcept>
 
-namespace br {
+namespace rates {
 namespace {
 
 /*
@@ -110,6 +110,17 @@ double y_cm(int module_id_y, int tower_y) {
   return (265.0 - 10.0 * static_cast<double>(module_id_y)) + (2.5 - 5.0 * static_cast<double>(tower_y));
 }
 
+double chip_x_cm(int module_id_x, int module_type, int module_half) {
+  if (module_type == 0) {
+    return (270.0 - 10.0 * static_cast<double>(module_id_x)) + (module_half == 0 ? 5.0 : -5.0);
+  }
+  return 265.0 - 10.0 * static_cast<double>(module_id_x);
+}
+
+double chip_y_cm(int module_id_y) {
+  return 265.0 - 10.0 * static_cast<double>(module_id_y);
+}
+
 }  // namespace
 
 
@@ -136,6 +147,19 @@ std::size_t LFHCALChannelIDHash::operator()(const LFHCALChannelID& channel) cons
   mix(channel.towerx);
   mix(channel.towery);
   mix(channel.rlayerz);
+  return h;
+}
+
+std::size_t LFHCALChipIDHash::operator()(const LFHCALChipID& chip) const {
+  std::size_t h = 0;
+  const auto mix = [&](int value) {
+    h ^= std::hash<int>{}(value) + 0x9e3779b9 + (h << 6) + (h >> 2);
+  };
+
+  mix(chip.moduleIDx);
+  mix(chip.moduleIDy);
+  mix(chip.module_type);
+  mix(chip.module_half);
   return h;
 }
 
@@ -166,6 +190,20 @@ LFHCALChannelID LFHCALCellIDDecoder::channel(std::uint64_t cell_id) const {
   };
 }
 
+LFHCALChipID LFHCALCellIDDecoder::decode_chip(std::uint64_t cell_id) const {
+  const int module_id_x = get(cell_id, "moduleIDx");
+  const int module_id_y = get(cell_id, "moduleIDy");
+  const int module_type = get(cell_id, "moduletype");
+  const int tower_x = get(cell_id, "towerx");
+
+  return LFHCALChipID{
+      module_id_x,
+      module_id_y,
+      module_type,
+      module_type == 0 ? (tower_x < 2 ? 0 : 1) : 0,
+  };
+}
+
 bool LFHCALCellIDDecoder::is_passive(std::uint64_t cell_id) const {
   return get(cell_id, "passive") != 0;
 }
@@ -189,4 +227,11 @@ LFHCALCellPosition LFHCALCellIDDecoder::position(std::uint64_t cell_id) const {
   };
 }
 
-}  // namespace br
+LFHCALCellPosition LFHCALCellIDDecoder::position(const LFHCALChipID& chip) const {
+  return LFHCALCellPosition{
+      10.0 * chip_x_cm(chip.moduleIDx, chip.module_type, chip.module_half),
+      10.0 * chip_y_cm(chip.moduleIDy),
+  };
+}
+
+}  // namespace rates

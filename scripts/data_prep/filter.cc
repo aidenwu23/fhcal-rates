@@ -48,7 +48,8 @@ Args parse_args(int argc, char* argv[]) {
 }
 
 bool keepCollection(const std::string& name) {
-  return name == "EventHeader" || name == "MCParticles" || name.find("LFHCAL") != std::string::npos;
+  return name == "EventHeader" || name == "MCParticles" || name.find("LFHCAL") != std::string::npos ||
+         name.find("HcalEndcapPInsert") != std::string::npos;
 }
 
 std::vector<std::string> keptCollections(const podio::Frame& frame) {
