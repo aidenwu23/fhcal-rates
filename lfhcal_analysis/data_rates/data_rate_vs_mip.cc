@@ -1,6 +1,6 @@
 /*
 
-./build/data_rate_vs_mip -i data/bkg_apr -o plots/data_rates/data_rate_vs_mip.root
+./build/data_rate_vs_mip -i data/bkg_apr -o lfhcal_plots/data_rates/data_rate_vs_mip.root
 
 */
 

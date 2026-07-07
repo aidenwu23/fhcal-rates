@@ -1,6 +1,6 @@
 /*
 
-./build/data_rate_vs_radius -i data/bkg_apr -o plots/data_rates/data_rate_vs_radius.root
+./build/data_rate_vs_radius -i data/bkg_apr -o lfhcal_plots/data_rates/data_rate_vs_radius.root
 
 */
 

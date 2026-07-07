@@ -1,6 +1,6 @@
 /*
 
-./build/rate_vs_mip -i data/bkg_apr -o plots/channel_occupancy/rate_vs_mip.root
+./build/rate_vs_mip -i data/bkg_apr -o lfhcal_plots/channel_occupancy/rate_vs_mip.root
 
 */
 

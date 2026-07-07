@@ -1,6 +1,6 @@
 /*
 
-./build/chip_channel_rate_vs_mip -i data/bkg_apr -o plots/chip_occupancy/chip_channel_rate_vs_mip.root
+./build/chip_channel_rate_vs_mip -i data/bkg_apr -o lfhcal_plots/chip_occupancy/chip_channel_rate_vs_mip.root
 
 */
 

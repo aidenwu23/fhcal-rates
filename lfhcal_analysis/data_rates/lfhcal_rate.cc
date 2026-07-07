@@ -1,6 +1,6 @@
 /*
 
-./build/lfhcal_rate -i data/bkg_apr -o plots/data_rates/lfhcal_rate.root
+./build/lfhcal_rate -i data/bkg_apr -o lfhcal_plots/data_rates/lfhcal_rate.root
 
 */
 

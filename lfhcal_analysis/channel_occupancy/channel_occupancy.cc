@@ -1,6 +1,6 @@
 /*
 
-./build/channel_occupancy -i data/bkg_apr -o plots/channel_occupancy/channel_occupancy.root
+./build/channel_occupancy -i data/bkg_apr -o lfhcal_plots/channel_occupancy/channel_occupancy.root
 
 */
 

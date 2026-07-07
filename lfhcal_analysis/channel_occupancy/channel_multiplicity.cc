@@ -1,6 +1,6 @@
 /*
 
-./build/channel_multiplicity -i data/bkg_apr -o plots/channel_occupancy/channel_multiplicity.root
+./build/channel_multiplicity -i data/bkg_apr -o lfhcal_plots/channel_occupancy/channel_multiplicity.root
 
 */
 

@@ -1,6 +1,6 @@
 /*
 
-./build/rate_scan_origins_r1000 -i data/bkg_apr -o plots/channel_occupancy/rate_scan_origins_r1000.root
+./build/rate_scan_origins_r1000 -i data/bkg_apr -o lfhcal_plots/channel_occupancy/rate_scan_origins_r1000.root
 
 */
 

@@ -1,6 +1,6 @@
 /*
 
-./build/longitudinal_occupancy -i data/bkg_apr -o plots/channel_occupancy/longitudinal_occupancy.root
+./build/longitudinal_occupancy -i data/bkg_apr -o lfhcal_plots/channel_occupancy/longitudinal_occupancy.root
 
 */
 

@@ -1,6 +1,6 @@
 /*
 
-./build/MC_eta_and_energy -i data/bkg_apr -o plots/hit-origins/MC_eta_and_energy.root
+./build/MC_eta_and_energy -i data/bkg_apr -o lfhcal_plots/hit-origins/MC_eta_and_energy.root
 
 */
 

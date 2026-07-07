@@ -1,6 +1,6 @@
 /*
 
-./build/hit_origins -i data/bkg_apr -o plots/hit-origins/origins.root
+./build/hit_origins -i data/bkg_apr -o lfhcal_plots/hit-origins/origins.root
 
 */
 

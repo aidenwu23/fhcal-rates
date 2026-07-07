@@ -1,6 +1,6 @@
 /*
 
-./build/data_rate_scan -i data/bkg_apr -o plots/data_rates/data_rate_scan.root
+./build/data_rate_scan -i data/bkg_apr -o lfhcal_plots/data_rates/data_rate_scan.root
 
 */
 

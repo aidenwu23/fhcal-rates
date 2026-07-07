@@ -1,6 +1,6 @@
 /*
 
-./build/fired_channels -i data/bkg_apr -o plots/chip_occupancy/fired_channels.root
+./build/fired_channels -i data/bkg_apr -o lfhcal_plots/chip_occupancy/fired_channels.root
 
 */
 

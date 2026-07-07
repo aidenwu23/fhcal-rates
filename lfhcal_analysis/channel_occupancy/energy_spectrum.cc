@@ -1,6 +1,6 @@
 /*
 
-./build/energy_spectrum -i data/bkg_apr -o plots/channel_occupancy/energy_spectrum.root
+./build/energy_spectrum -i data/bkg_apr -o lfhcal_plots/channel_occupancy/energy_spectrum.root
 
 */
 

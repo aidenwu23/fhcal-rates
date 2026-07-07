@@ -1,6 +1,6 @@
 /*
 
-./build/rate_scan -i data/bkg_apr -o plots/channel_occupancy/rate_scan.root
+./build/rate_scan -i data/bkg_apr -o lfhcal_plots/channel_occupancy/rate_scan.root
 
 */
 

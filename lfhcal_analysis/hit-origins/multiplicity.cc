@@ -1,6 +1,6 @@
 /*
 
-./build/multiplicity -i data/bkg_apr -o plots/hit-origins/multiplicity.root
+./build/multiplicity -i data/bkg_apr -o lfhcal_plots/hit-origins/multiplicity.root
 
 */
 

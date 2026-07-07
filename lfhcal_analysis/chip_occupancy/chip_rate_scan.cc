@@ -1,6 +1,6 @@
 /*
 
-./build/chip_rate_scan -i data/bkg_apr -o plots/chip_occupancy/chip_rate_scan.root
+./build/chip_rate_scan -i data/bkg_apr -o lfhcal_plots/chip_occupancy/chip_rate_scan.root
 
 */
 

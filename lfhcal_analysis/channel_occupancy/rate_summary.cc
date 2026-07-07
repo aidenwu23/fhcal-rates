@@ -1,6 +1,6 @@
 /*
 
-./build/rate_summary -i data/bkg_apr -o plots/channel_occupancy/rate_summary.csv
+./build/rate_summary -i data/bkg_apr -o lfhcal_plots/channel_occupancy/rate_summary.csv
 
 */
 
