@@ -23,7 +23,7 @@ bool has_collection(const podio::Frame& frame, const std::string& name) {
 std::vector<std::filesystem::path> find_root_files(const std::string& input_dir) {
   std::vector<std::filesystem::path> files;
   for (const auto& entry : std::filesystem::directory_iterator(input_dir)) {
-    if (entry.is_regular_file() && entry.path().extension() == ".root") {
+    if ((entry.is_regular_file() || entry.is_symlink()) && entry.path().extension() == ".root") {
       files.push_back(entry.path());
     }
   }

@@ -2,9 +2,9 @@
 """
 
 python3 scripts/overlay.py \
-    -a plots/performance/energy_res_no_bkg.root -b plots/performance/energy_res.root \
+    -a lfhcal_plots/performance/energy_res_no_bkg.root -b lfhcal_plots/performance/energy_res.root \
     --label-a 'no-bkg' --label-b 'bkg' \
-    -o plots/performance/energy_res_overlay.root
+    -o lfhcal_plots/performance/energy_res_overlay.root
 
 """
 

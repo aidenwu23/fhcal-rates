@@ -1,5 +1,6 @@
 #include "decode_cell_id.h"
 
+#include <cstdint>
 #include <stdexcept>
 
 namespace rates {
@@ -57,6 +58,17 @@ std::uint64_t bit_mask(int width) {
 //   3. cast to int for downstream indexing
 int decode_bits(std::uint64_t cell_id, int offset, int width) {
   return static_cast<int>((cell_id >> offset) & bit_mask(width));
+}
+
+int decode_signed_bits(std::uint64_t cell_id, int offset, int width) {
+  const std::uint64_t raw = (cell_id >> offset) & bit_mask(width);
+  const std::uint64_t sign_bit = 1ULL << (width - 1);
+  if ((raw & sign_bit) == 0) {
+    return static_cast<int>(raw);
+  }
+
+  const std::uint64_t extended = raw | ~bit_mask(width);
+  return static_cast<int>(static_cast<std::int64_t>(extended));
 }
 
 /*
@@ -120,6 +132,28 @@ double chip_x_cm(int module_id_x, int module_type, int module_half) {
 double chip_y_cm(int module_id_y) {
   return 265.0 - 10.0 * static_cast<double>(module_id_y);
 }
+
+// HcalEndcapPInsert readout:
+// system:8,side:1,layer:8,slice:7,x:32:-16,y:-16
+//
+// The insert geometry aligns x to bit 32, leaving 8 unused bits after slice.
+constexpr int kInsertSystemOffset = 0;
+constexpr int kInsertSystemWidth = 8;
+
+constexpr int kInsertSideOffset = kInsertSystemOffset + kInsertSystemWidth;
+constexpr int kInsertSideWidth = 1;
+
+constexpr int kInsertLayerOffset = kInsertSideOffset + kInsertSideWidth;
+constexpr int kInsertLayerWidth = 8;
+
+constexpr int kInsertSliceOffset = kInsertLayerOffset + kInsertLayerWidth;
+constexpr int kInsertSliceWidth = 7;
+
+constexpr int kInsertXOffset = 32;
+constexpr int kInsertXWidth = 16;
+
+constexpr int kInsertYOffset = kInsertXOffset + kInsertXWidth;
+constexpr int kInsertYWidth = 16;
 
 }  // namespace
 
@@ -231,6 +265,26 @@ LFHCALCellPosition LFHCALCellIDDecoder::position(const LFHCALChipID& chip) const
   return LFHCALCellPosition{
       10.0 * chip_x_cm(chip.moduleIDx, chip.module_type, chip.module_half),
       10.0 * chip_y_cm(chip.moduleIDy),
+  };
+}
+
+int HcalEndcapPInsertCellIDDecoder::get(std::uint64_t cell_id, std::string_view field) const {
+  if (field == "system") return decode_bits(cell_id, kInsertSystemOffset, kInsertSystemWidth);
+  if (field == "side") return decode_bits(cell_id, kInsertSideOffset, kInsertSideWidth);
+  if (field == "layer") return decode_bits(cell_id, kInsertLayerOffset, kInsertLayerWidth);
+  if (field == "slice") return decode_bits(cell_id, kInsertSliceOffset, kInsertSliceWidth);
+  if (field == "x") return decode_signed_bits(cell_id, kInsertXOffset, kInsertXWidth);
+  if (field == "y") return decode_signed_bits(cell_id, kInsertYOffset, kInsertYWidth);
+  throw std::invalid_argument("Unknown HcalEndcapPInsert cellID field");
+}
+
+HcalEndcapPInsertCellID HcalEndcapPInsertCellIDDecoder::cell(std::uint64_t cell_id) const {
+  return HcalEndcapPInsertCellID{
+      get(cell_id, "side"),
+      get(cell_id, "layer"),
+      get(cell_id, "slice"),
+      get(cell_id, "x"),
+      get(cell_id, "y"),
   };
 }
 

@@ -65,4 +65,26 @@ class LFHCALCellIDDecoder {
 
 using LFHCALDecoder = LFHCALCellIDDecoder;
 
+struct HcalEndcapPInsertCellID {
+  int side = 0;
+  int layer = 0;
+  int slice = 0;
+  int x = 0;
+  int y = 0;
+
+  bool operator==(const HcalEndcapPInsertCellID& other) const {
+    return side == other.side &&
+           layer == other.layer &&
+           slice == other.slice &&
+           x == other.x &&
+           y == other.y;
+  }
+};
+
+class HcalEndcapPInsertCellIDDecoder {
+ public:
+  int get(std::uint64_t cell_id, std::string_view field) const;
+  HcalEndcapPInsertCellID cell(std::uint64_t cell_id) const;
+};
+
 }  // namespace rates
