@@ -90,13 +90,13 @@ void draw_overlay(TDirectory* dir,
 
 // Called per event after the hit loop to accumulate radius-scan products.
 void accumulate_event(std::array<ThresholdSum, 3>& threshold_sums,
-                      const mip::EventEnergyMap& channel_energy_sum,
+                      const mip::EventEnergyMap& channel_energies,
                       const rates::InsertToLFHCALMapper& mapper) {
   // Each threshold gets its own per-event map from virtual chip to fired-channel count.
   std::unordered_map<rates::VirtualLFHCALChipID, int, rates::VirtualLFHCALChipIDHash> active_counts[3];
 
   // Loop over all virtual channels in this event.
-  for (const auto& [channel, energy] : channel_energy_sum) {
+  for (const auto& [channel, energy] : channel_energies) {
 
     // For each virtual channel, test all requested MIP thresholds.
     for (std::size_t threshold_index = 0; threshold_index < kCoefficients.size(); ++threshold_index) {
@@ -111,9 +111,9 @@ void accumulate_event(std::array<ThresholdSum, 3>& threshold_sums,
   // After the event is summed, convert fired virtual channels per chip into payload bits.
   for (std::size_t threshold_index = 0; threshold_index < kCoefficients.size(); ++threshold_index) {
     for (const auto& [chip, active_count] : active_counts[threshold_index]) {
-      const double event_bits =
+      const double payload_bits =
           (kOverheadBits + kBitsPerHit * static_cast<double>(active_count)) * kSamplesPerEvent;
-      threshold_sums[threshold_index].payload_bits[chip] += event_bits;
+      threshold_sums[threshold_index].payload_bits[chip] += payload_bits;
     }
   }
 }

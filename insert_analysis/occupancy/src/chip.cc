@@ -82,7 +82,7 @@ void accumulate_event(ChipSum& chip_sum,
                       const std::unordered_map<rates::VirtualLFHCALChannelID, int, rates::VirtualLFHCALChannelIDHash>& channel_hit_counts,
                       const rates::InsertToLFHCALMapper& mapper) {
   std::unordered_map<rates::VirtualLFHCALChipID, int, rates::VirtualLFHCALChipIDHash> chip_active_channel_counts;
-  int hits_per_event = 0;
+  int chip_hits_per_event = 0;
 
   // First collapse the event's fired virtual channels into per-chip active-channel counts.
   for (const auto& [channel, count] : channel_hit_counts) {
@@ -93,7 +93,7 @@ void accumulate_event(ChipSum& chip_sum,
 
   // Then convert each fired chip into occupancy and data-volume counters.
   for (const auto& [chip, active_channel_count] : chip_active_channel_counts) {
-    const double event_bits =
+    const double payload_bits =
         (rates::insert_occupancy::kOverheadBits +
          rates::insert_occupancy::kBitsPerHit * static_cast<double>(active_channel_count)) *
         rates::insert_occupancy::kSamplesPerEvent;
@@ -102,13 +102,13 @@ void accumulate_event(ChipSum& chip_sum,
     stats.x_mm = (static_cast<double>(chip.ix) + 0.5) * kChipSizeMM;
     stats.y_mm = (static_cast<double>(chip.iy) + 0.5) * kChipSizeMM;
     ++stats.total_hits;         // Count one fired event for this virtual chip.
-    stats.total_payload_bits += event_bits;  // Accumulate the chip payload from this event.
+    stats.total_payload_bits += payload_bits;  // Accumulate the chip payload from this event.
 
-    ++hits_per_event;
+    ++chip_hits_per_event;
   }
 
   // Fill the per-event chip multiplicity histograms once the event is fully summed.
-  chip_sum.h_hits_evt->Fill(hits_per_event);
+  chip_sum.h_hits_evt->Fill(chip_hits_per_event);
 }
 
 // Called once after the event loop to write virtual-chip products.

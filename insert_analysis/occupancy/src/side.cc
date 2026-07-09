@@ -4,6 +4,7 @@
 
 #include <TCanvas.h>
 #include <TGraph.h>
+#include <TLegend.h>
 
 #include <array>
 #include <string>
@@ -16,47 +17,63 @@ namespace {
 // ----------------------------------------------------------------------------------
 constexpr std::array<double, 16> kCoefficients = {0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0, 1.1, 1.2, 1.3, 1.4, 1.5};
 
-// Called when writing one side-level data-rate scan.
-void draw_side_canvas(TDirectory* parent,
-                      int side,
-                      const std::array<double, kCoefficients.size()>& rates_gbps) {
-  const std::string side_name = side == 0 ? "left" : "right";
+// Called when writing the side-level data-rate scan.
+void draw_side_canvas(TDirectory* dir,
+                      const std::array<std::array<double, kCoefficients.size()>, 2>& rates_gbps) {
   const double y_min = 0.0;
   const double y_max = 12.0;
-  auto* dir = parent->mkdir(side_name.c_str());
   dir->cd();
 
-  TCanvas canvas(("c_" + side_name + "_data_rate_vs_mip").c_str(),
-                 ("Insert " + side_name + " side virtual-chip tail data rates vs MIP coefficient;MIP coefficient;data rate [Gb/s]").c_str(),
+  TCanvas canvas("c_side_data_rate_vs_mip",
+                 "Insert side virtual-chip tail data rates vs MIP coefficient;MIP coefficient;data rate [Gb/s]",
                  1000,
                  800);
   canvas.SetGrid();
 
   auto* frame = canvas.DrawFrame(kCoefficients.front(), y_min, kCoefficients.back(), y_max);
-  frame->SetTitle(("Insert " + side_name + " side virtual-chip tail data rates vs MIP coefficient;MIP coefficient;data rate [Gb/s]").c_str());
+  frame->SetTitle("Insert side virtual-chip tail data rates vs MIP coefficient;MIP coefficient;data rate [Gb/s]");
   frame->SetStats(false);
 
-  TGraph graph(static_cast<int>(kCoefficients.size()), kCoefficients.data(), rates_gbps.data());
-  graph.SetName(("g_" + side_name + "_data_rate_vs_mip").c_str());
-  graph.SetLineWidth(2);
-  graph.SetMarkerStyle(20);
-  graph.Draw("LP SAME");
+  TLegend legend(0.65, 0.76, 0.88, 0.88);
+  legend.SetBorderSize(0);
+  legend.SetFillStyle(0);
+  legend.SetTextSize(0.04);
 
+  TGraph left_graph(static_cast<int>(kCoefficients.size()), kCoefficients.data(), rates_gbps[0].data());
+  left_graph.SetName("g_left_data_rate_vs_mip");
+  left_graph.SetLineWidth(2);
+  left_graph.SetLineColor(kBlue + 1);
+  left_graph.SetMarkerColor(kBlue + 1);
+  left_graph.SetMarkerStyle(20);
+  left_graph.Draw("LP SAME");
+  legend.AddEntry(&left_graph, "left", "lp");
+
+  TGraph right_graph(static_cast<int>(kCoefficients.size()), kCoefficients.data(), rates_gbps[1].data());
+  right_graph.SetName("g_right_data_rate_vs_mip");
+  right_graph.SetLineWidth(2);
+  right_graph.SetLineColor(kRed + 1);
+  right_graph.SetMarkerColor(kRed + 1);
+  right_graph.SetMarkerStyle(21);
+  right_graph.Draw("LP SAME");
+  legend.AddEntry(&right_graph, "right", "lp");
+
+  legend.Draw();
   canvas.Write();
-  graph.Write();
+  left_graph.Write();
+  right_graph.Write();
 }
 
 }  // namespace
 
 // Called per event after the hit loop to accumulate side-level data-rate products.
 void accumulate_event(std::array<std::array<ThresholdSum, 16>, 2>& threshold_sums,
-                      const std::array<mip::EventEnergyMap, 2>& side_channel_energy_sum,
+                      const std::array<mip::EventEnergyMap, 2>& side_channel_energies,
                       const rates::InsertToLFHCALMapper& mapper) {
   for (int side = 0; side < 2; ++side) {
     std::unordered_map<rates::VirtualLFHCALChipID, int, rates::VirtualLFHCALChipIDHash> active_counts[16];
 
     // Loop over all virtual channels on this side in this event.
-    for (const auto& [channel, energy] : side_channel_energy_sum[side]) {
+    for (const auto& [channel, energy] : side_channel_energies[side]) {
 
       // For each virtual channel, test all MIP thresholds.
       for (std::size_t threshold_index = 0; threshold_index < kCoefficients.size(); ++threshold_index) {
@@ -70,12 +87,12 @@ void accumulate_event(std::array<std::array<ThresholdSum, 16>, 2>& threshold_sum
 
     // Sum the full side's virtual-chip payload for this event.
     for (std::size_t threshold_index = 0; threshold_index < kCoefficients.size(); ++threshold_index) {
-      double event_bits = 0.0;
+      double payload_bits = 0.0;
       for (const auto& [chip, active_channel_count] : active_counts[threshold_index]) {
         (void)chip;
-        event_bits += (kOverheadBits + kBitsPerHit * static_cast<double>(active_channel_count)) * kSamplesPerEvent;
+        payload_bits += (kOverheadBits + kBitsPerHit * static_cast<double>(active_channel_count)) * kSamplesPerEvent;
       }
-      threshold_sums[side][threshold_index].total_payload_bits += event_bits;
+      threshold_sums[side][threshold_index].total_payload_bits += payload_bits;
     }
   }
 }
@@ -95,8 +112,7 @@ void write_output(TFile& output,
   }
 
   auto* parent = output.mkdir("side_data_rate_vs_mip");
-  draw_side_canvas(parent, 0, rates_gbps[0]);
-  draw_side_canvas(parent, 1, rates_gbps[1]);
+  draw_side_canvas(parent, rates_gbps);
 }
 
 }  // namespace rates::insert_occupancy::side

@@ -79,10 +79,13 @@ void accumulate_event(std::vector<SegmentSum>& segment_sums,
 
     auto& segment_sum = segment_sums[segment];
     auto& stats = segment_sum.channels[channel];
+
+    // Map the channel x and y index back onto the corresponding spatial location using cell size.
     stats.x_mm = (static_cast<double>(channel.ix) + 0.5) * kVirtualCellSizeMM;
     stats.y_mm = (static_cast<double>(channel.iy) + 0.5) * kVirtualCellSizeMM;
     stats.total_hits += count;
 
+    // Also keep track of a sum across all virtual readout segments for some reason.
     auto& all_segment_stats = segment_sums[kAllSegmentsIndex].channels[channel];
     all_segment_stats.x_mm = stats.x_mm;
     all_segment_stats.y_mm = stats.y_mm;

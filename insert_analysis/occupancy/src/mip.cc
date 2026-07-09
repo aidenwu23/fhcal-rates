@@ -80,7 +80,7 @@ void draw_overlay(TDirectory* dir,
 void accumulate_event(std::array<ChannelThresholdSum, 16>& channel_threshold_sums,
                       std::array<ChipThresholdSum, 16>& chip_threshold_sums,
                       std::array<DataThresholdSum, 16>& data_threshold_sums,
-                      const EventEnergyMap& channel_energy_sum,
+                      const EventEnergyMap& channel_energies,
                       const rates::InsertToLFHCALMapper& mapper) {
   // These per-threshold containers live for one event, then get folded into the full sample.
   std::unordered_map<rates::VirtualLFHCALChipID,
@@ -90,7 +90,7 @@ void accumulate_event(std::array<ChannelThresholdSum, 16>& channel_threshold_sum
   std::unordered_set<rates::VirtualLFHCALChipID, rates::VirtualLFHCALChipIDHash> fired_chips[16];
 
   // Loop over all virtual channels in this event.
-  for (const auto& [channel, energy] : channel_energy_sum) {
+  for (const auto& [channel, energy] : channel_energies) {
 
     // For each virtual channel, test all MIP thresholds.
     for (std::size_t threshold_index = 0; threshold_index < kCoefficients.size(); ++threshold_index) {
@@ -187,9 +187,9 @@ void write_output(TFile& output,
   auto* channel_dir = output.mkdir("channel_rate_vs_mip");
   draw_overlay(channel_dir,
                "c_channel_rate_vs_mip",
-               "Virtual channel rate vs MIP coefficient;MIP coefficient;rate [Hz/virtual channel]",
+               "Virtual channel tail rates vs MIP coefficient;MIP coefficient;rate [Hz]",
                "g_channel_rate_vs_mip",
-               "rate [Hz/virtual channel]",
+               "rate [Hz]",
                0.0,
                2.0e5,
                channel_percentile_values);
@@ -197,9 +197,9 @@ void write_output(TFile& output,
   auto* chip_dir = output.mkdir("chip_rate_vs_mip");
   draw_overlay(chip_dir,
                "c_chip_rate_vs_mip",
-               "Virtual chip rate vs MIP coefficient;MIP coefficient;rate [Hz/virtual chip]",
+               "Virtual chip tail rates vs MIP coefficient;MIP coefficient;rate [Hz]",
                "g_chip_rate_vs_mip",
-               "rate [Hz/virtual chip]",
+               "rate [Hz]",
                8.0e4,
                4.2e5,
                chip_percentile_values);

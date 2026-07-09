@@ -158,8 +158,8 @@ int main(int argc, char* argv[]) {
 
       // These maps hold the event-level virtual readout before it is folded into totals.
       std::unordered_map<rates::VirtualLFHCALChannelID, int, rates::VirtualLFHCALChannelIDHash> channel_hit_counts;
-      rates::insert_occupancy::mip::EventEnergyMap channel_energy_sum;
-      std::array<rates::insert_occupancy::mip::EventEnergyMap, 2> side_channel_energy_sum;
+      rates::insert_occupancy::mip::EventEnergyMap channel_energies;
+      std::array<rates::insert_occupancy::mip::EventEnergyMap, 2> side_channel_energies;
       const auto& hits = frame.get<edm4hep::SimCalorimeterHitCollection>(insert_collection_name);
 
       // Loop over all hits.
@@ -180,27 +180,27 @@ int main(int argc, char* argv[]) {
         auto channel = mapper.channel(cell.layer, position.x, position.y);
         channel.layer = rates::insert_occupancy::kSegmentFirstLayers[segment];
         ++channel_hit_counts[channel];
-        channel_energy_sum[channel] += hit.getEnergy();
-        side_channel_energy_sum[cell.side][channel] += hit.getEnergy();
+        channel_energies[channel] += hit.getEnergy();
+        side_channel_energies[cell.side][channel] += hit.getEnergy();
       }
 
       // Build the fixed 0.5-MIP virtual-channel view used by the non-scan occupancy products.
-      std::unordered_map<rates::VirtualLFHCALChannelID, int, rates::VirtualLFHCALChannelIDHash> channel_hit_counts_above_0p5_mip;
-      for (const auto& [channel, energy] : channel_energy_sum) {
+      std::unordered_map<rates::VirtualLFHCALChannelID, int, rates::VirtualLFHCALChannelIDHash> thresholded_channel_hit_counts;
+      for (const auto& [channel, energy] : channel_energies) {
         const int segment = rates::insert_occupancy::segment_index(channel.layer);
         if (energy <= 0.5 * rates::insert_occupancy::channel_mip_energy_gev(segment)) continue;
         auto it = channel_hit_counts.find(channel);
         if (it == channel_hit_counts.end()) continue;
-        channel_hit_counts_above_0p5_mip[channel] = it->second;
+        thresholded_channel_hit_counts[channel] = it->second;
       }
 
       // Convert the event-level virtual channels into each output product family.
-      rates::insert_occupancy::xy::accumulate_event(segment_sums, channel_hit_counts_above_0p5_mip);
-      rates::insert_occupancy::chip::accumulate_event(chip_sum, channel_hit_counts_above_0p5_mip, mapper);
-      rates::insert_occupancy::mip::accumulate_event(channel_threshold_sums, chip_threshold_sums, data_threshold_sums, channel_energy_sum, mapper);
-      rates::insert_occupancy::radius::accumulate_event(radius_threshold_sums, channel_energy_sum, mapper);
-      rates::insert_occupancy::side::accumulate_event(side_threshold_sums, side_channel_energy_sum, mapper);
-      rates::insert_occupancy::fill_event_histograms(segment_sums, channel_hit_counts_above_0p5_mip);
+      rates::insert_occupancy::xy::accumulate_event(segment_sums, thresholded_channel_hit_counts);
+      rates::insert_occupancy::chip::accumulate_event(chip_sum, thresholded_channel_hit_counts, mapper);
+      rates::insert_occupancy::mip::accumulate_event(channel_threshold_sums, chip_threshold_sums, data_threshold_sums, channel_energies, mapper);
+      rates::insert_occupancy::radius::accumulate_event(radius_threshold_sums, channel_energies, mapper);
+      rates::insert_occupancy::side::accumulate_event(side_threshold_sums, side_channel_energies, mapper);
+      rates::insert_occupancy::fill_event_histograms(segment_sums, thresholded_channel_hit_counts);
     }
   }
   std::cerr << "\n";

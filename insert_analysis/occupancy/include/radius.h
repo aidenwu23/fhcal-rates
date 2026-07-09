@@ -21,7 +21,7 @@ struct ThresholdSum {
 // Interface
 // ----------------------------------------------------------------------------------
 void accumulate_event(std::array<ThresholdSum, 3>& threshold_sums,
-                      const mip::EventEnergyMap& channel_energy_sum,
+                      const mip::EventEnergyMap& channel_energies,
                       const rates::InsertToLFHCALMapper& mapper);
 
 void write_output(TFile& output,

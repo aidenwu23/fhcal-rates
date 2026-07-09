@@ -33,7 +33,7 @@ using EventEnergyMap = std::unordered_map<rates::VirtualLFHCALChannelID, double,
 void accumulate_event(std::array<ChannelThresholdSum, 16>& channel_threshold_sums,
                       std::array<ChipThresholdSum, 16>& chip_threshold_sums,
                       std::array<DataThresholdSum, 16>& data_threshold_sums,
-                      const EventEnergyMap& channel_energy_sum,
+                      const EventEnergyMap& channel_energies,
                       const rates::InsertToLFHCALMapper& mapper);
 
 void write_output(TFile& output,
