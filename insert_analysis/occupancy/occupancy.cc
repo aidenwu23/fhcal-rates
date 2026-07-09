@@ -6,7 +6,6 @@
 
 #include <TFile.h>
 #include <TH1.h>
-#include <TH2D.h>
 
 #include <podio/Frame.h>
 #include <podio/ROOTReader.h>
@@ -39,7 +38,7 @@ namespace {
 // Constants and structs
 // ----------------------------------------------------------------------------------
 
-constexpr const char* kCollectionMatch = "HcalEndcapPInsert";
+constexpr const char* kInsertCollectionMatch = "HcalEndcapPInsert";
 
 struct Args {
   std::string input_path;
@@ -81,7 +80,7 @@ Args parse_args(int argc, char* argv[]) {
 // ----------------------------------------------------------------------------------
 std::string find_insert_collection(const podio::Frame& frame) {
   for (const auto& name : frame.getAvailableCollections()) {
-    if (name.find(kCollectionMatch) != std::string::npos &&
+    if (name.find(kInsertCollectionMatch) != std::string::npos &&
         name.find("Contributions") == std::string::npos) {
       return name;
     }
@@ -99,14 +98,14 @@ int main(int argc, char* argv[]) {
 
   // Parse args and expand the input into a file list.
   const auto args = parse_args(argc, argv);
-  std::vector<fs::path> files;
+  std::vector<fs::path> input_files;
   const fs::path input_path(args.input_path);
   if (fs::is_regular_file(input_path) && input_path.extension() == ".root") {
-    files.push_back(input_path);
+    input_files.push_back(input_path);
   } else {
-    files = rates::find_root_files(args.input_path);
+    input_files = rates::find_root_files(args.input_path);
   }
-  if (files.empty()) {
+  if (input_files.empty()) {
     std::cerr << "No ROOT files found in " << args.input_path << "\n";
     return 1;
   }
@@ -122,22 +121,22 @@ int main(int argc, char* argv[]) {
   // Takes the layer, x_mm, and y_mm.
   const rates::InsertToLFHCALMapper mapper;
 
-  std::vector<rates::insert_occupancy::LayerAccum> layers;
-  std::vector<rates::insert_occupancy::chip::LayerAccum> chip_layers;
-  std::array<rates::insert_occupancy::mip::ChannelThresholdAccum, 16> channel_mip_products;
-  std::array<rates::insert_occupancy::mip::ChipThresholdAccum, 16> chip_mip_products;
-  std::array<rates::insert_occupancy::mip::DataThresholdAccum, 16> data_mip_products;
-  std::array<rates::insert_occupancy::radius::ThresholdAccum, 3> radius_products;
-  std::array<std::array<rates::insert_occupancy::side::ThresholdAccum, 16>, 2> side_products;
-  rates::insert_occupancy::init_layer_accumulations(layers);
-  rates::insert_occupancy::chip::init_layer_accumulations(chip_layers);
+  std::vector<rates::insert_occupancy::SegmentSum> segment_sums;
+  rates::insert_occupancy::chip::ChipSum chip_sum;
+  std::array<rates::insert_occupancy::mip::ChannelThresholdSum, 16> channel_threshold_sums;
+  std::array<rates::insert_occupancy::mip::ChipThresholdSum, 16> chip_threshold_sums;
+  std::array<rates::insert_occupancy::mip::DataThresholdSum, 16> data_threshold_sums;
+  std::array<rates::insert_occupancy::radius::ThresholdSum, 3> radius_threshold_sums;
+  std::array<std::array<rates::insert_occupancy::side::ThresholdSum, 16>, 2> side_threshold_sums;
+  rates::insert_occupancy::init_segment_sums(segment_sums);
+  rates::insert_occupancy::chip::init_chip_sum(chip_sum);
 
-  std::string collection_name;
+  std::string insert_collection_name;
   std::uint64_t n_events = 0;
-  rates::FileProgress progress(files.size(), std::cerr);
+  rates::FileProgress progress(input_files.size(), std::cerr);
 
   // Loop over all files in the input.
-  for (const auto& path : files) {
+  for (const auto& path : input_files) {
     progress.tick();
 
     podio::ROOTReader reader;
@@ -146,23 +145,22 @@ int main(int argc, char* argv[]) {
 
     // Per file, loop over all events.
     for (std::size_t event_index = 0; event_index < total_events; ++event_index) {
-      auto data = reader.readEntry("events", event_index);
-      if (!data) continue;
+      auto event_data = reader.readEntry("events", event_index);
+      if (!event_data) continue;
 
-      podio::Frame frame(std::move(data));
+      podio::Frame frame(std::move(event_data));
 
-      // Lock onto the first insert hit collection name and reuse it for later events.
-      if (collection_name.empty()) {
-        collection_name = find_insert_collection(frame);
+      if (insert_collection_name.empty()) {
+        insert_collection_name = find_insert_collection(frame);
       }
-      if (collection_name.empty() || !rates::has_collection(frame, collection_name)) continue;
+      if (insert_collection_name.empty() || !rates::has_collection(frame, insert_collection_name)) continue;
       ++n_events;
 
       // These maps hold the event-level virtual readout before it is folded into totals.
-      std::unordered_map<rates::VirtualLFHCALChannelID, int, rates::VirtualLFHCALChannelIDHash> event_hits;
-      rates::insert_occupancy::mip::EventEnergyMap event_energy;
-      std::array<rates::insert_occupancy::mip::EventEnergyMap, 2> side_event_energy;
-      const auto& hits = frame.get<edm4hep::SimCalorimeterHitCollection>(collection_name);
+      std::unordered_map<rates::VirtualLFHCALChannelID, int, rates::VirtualLFHCALChannelIDHash> channel_hit_counts;
+      rates::insert_occupancy::mip::EventEnergyMap channel_energy_sum;
+      std::array<rates::insert_occupancy::mip::EventEnergyMap, 2> side_channel_energy_sum;
+      const auto& hits = frame.get<edm4hep::SimCalorimeterHitCollection>(insert_collection_name);
 
       // Loop over all hits.
       for (const auto& hit : hits) {
@@ -173,7 +171,6 @@ int main(int argc, char* argv[]) {
 
         // Map the physical layer into one of the seven LFHCAL-like longitudinal segments.
         if (cell.side < 0 || cell.side > 1) continue;
-
         const int segment = rates::insert_occupancy::segment_index(cell.layer);
         if (segment < 0) continue;
 
@@ -182,23 +179,33 @@ int main(int argc, char* argv[]) {
         // Map the hit into the virtual channel grid used for all later rate products.
         auto channel = mapper.channel(cell.layer, position.x, position.y);
         channel.layer = rates::insert_occupancy::kSegmentFirstLayers[segment];
-        ++event_hits[channel];              // Count how many hits land in this virtual channel this event.
-        event_energy[channel] += hit.getEnergy();  // Sum energy so threshold scans can be applied after the hit loop.
-        side_event_energy[cell.side][channel] += hit.getEnergy();
+        ++channel_hit_counts[channel];
+        channel_energy_sum[channel] += hit.getEnergy();
+        side_channel_energy_sum[cell.side][channel] += hit.getEnergy();
+      }
+
+      // Build the fixed 0.5-MIP virtual-channel view used by the non-scan occupancy products.
+      std::unordered_map<rates::VirtualLFHCALChannelID, int, rates::VirtualLFHCALChannelIDHash> channel_hit_counts_above_0p5_mip;
+      for (const auto& [channel, energy] : channel_energy_sum) {
+        const int segment = rates::insert_occupancy::segment_index(channel.layer);
+        if (energy <= 0.5 * rates::insert_occupancy::channel_mip_energy_gev(segment)) continue;
+        auto it = channel_hit_counts.find(channel);
+        if (it == channel_hit_counts.end()) continue;
+        channel_hit_counts_above_0p5_mip[channel] = it->second;
       }
 
       // Convert the event-level virtual channels into each output product family.
-      rates::insert_occupancy::xy::accumulate_event(layers, event_hits);
-      rates::insert_occupancy::chip::accumulate_event(chip_layers, event_hits, mapper);
-      rates::insert_occupancy::mip::accumulate_event(channel_mip_products, chip_mip_products, data_mip_products, event_energy, mapper);
-      rates::insert_occupancy::radius::accumulate_event(radius_products, event_energy, mapper);
-      rates::insert_occupancy::side::accumulate_event(side_products, side_event_energy, mapper);
-      rates::insert_occupancy::fill_event_histograms(layers, event_hits);
+      rates::insert_occupancy::xy::accumulate_event(segment_sums, channel_hit_counts_above_0p5_mip);
+      rates::insert_occupancy::chip::accumulate_event(chip_sum, channel_hit_counts_above_0p5_mip, mapper);
+      rates::insert_occupancy::mip::accumulate_event(channel_threshold_sums, chip_threshold_sums, data_threshold_sums, channel_energy_sum, mapper);
+      rates::insert_occupancy::radius::accumulate_event(radius_threshold_sums, channel_energy_sum, mapper);
+      rates::insert_occupancy::side::accumulate_event(side_threshold_sums, side_channel_energy_sum, mapper);
+      rates::insert_occupancy::fill_event_histograms(segment_sums, channel_hit_counts_above_0p5_mip);
     }
   }
   std::cerr << "\n";
 
-  if (collection_name.empty()) {
+  if (insert_collection_name.empty()) {
     std::cerr << "Failed to find an insert hit collection\n";
     return 1;
   }
@@ -214,12 +221,12 @@ int main(int argc, char* argv[]) {
     return 1;
   }
 
-  rates::insert_occupancy::xy::write_output(output, layers, n_events);
-  rates::insert_occupancy::channel::write_output(output, layers, n_events);
-  rates::insert_occupancy::chip::write_output(output, chip_layers, n_events);
-  rates::insert_occupancy::mip::write_output(output, channel_mip_products, chip_mip_products, data_mip_products, n_events);
-  rates::insert_occupancy::radius::write_output(output, radius_products, n_events);
-  rates::insert_occupancy::side::write_output(output, side_products, n_events);
+  rates::insert_occupancy::xy::write_output(output, segment_sums, n_events);
+  rates::insert_occupancy::channel::write_output(output, segment_sums, n_events);
+  rates::insert_occupancy::chip::write_output(output, chip_sum, n_events);
+  rates::insert_occupancy::mip::write_output(output, channel_threshold_sums, chip_threshold_sums, data_threshold_sums, n_events);
+  rates::insert_occupancy::radius::write_output(output, radius_threshold_sums, n_events);
+  rates::insert_occupancy::side::write_output(output, side_threshold_sums, n_events);
 
   output.Close();
   return 0;

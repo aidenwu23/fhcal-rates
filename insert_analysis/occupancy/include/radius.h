@@ -13,19 +13,19 @@ namespace rates::insert_occupancy::radius {
 // ----------------------------------------------------------------------------------
 // Structs
 // ----------------------------------------------------------------------------------
-struct ThresholdAccum {
-  std::unordered_map<rates::VirtualLFHCALChipID, double, rates::VirtualLFHCALChipIDHash> bits;
+struct ThresholdSum {
+  std::unordered_map<rates::VirtualLFHCALChipID, double, rates::VirtualLFHCALChipIDHash> payload_bits;
 };
 
 // ----------------------------------------------------------------------------------
 // Interface
 // ----------------------------------------------------------------------------------
-void accumulate_event(std::array<ThresholdAccum, 3>& products,
-                      const mip::EventEnergyMap& event_energy,
+void accumulate_event(std::array<ThresholdSum, 3>& threshold_sums,
+                      const mip::EventEnergyMap& channel_energy_sum,
                       const rates::InsertToLFHCALMapper& mapper);
 
 void write_output(TFile& output,
-                  const std::array<ThresholdAccum, 3>& products,
+                  const std::array<ThresholdSum, 3>& threshold_sums,
                   std::uint64_t n_events);
 
 }  // namespace rates::insert_occupancy::radius

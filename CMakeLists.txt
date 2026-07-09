@@ -16,6 +16,8 @@ find_package(EDM4HEP REQUIRED)
 
 add_subdirectory(scripts/data_prep)
 
+add_subdirectory(insert_analysis)
+
 add_subdirectory(lfhcal_analysis/hit-origins)
 
 add_subdirectory(lfhcal_analysis/channel_occupancy)

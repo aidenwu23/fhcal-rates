@@ -10,32 +10,32 @@ namespace {
 // Plot helper(s)
 // ----------------------------------------------------------------------------------
 
-// Called when writing one layer directory into the output file.
-void write_layer_directory(TDirectory* parent,
-                           const LayerAccum& layer_accum,
-                           int layer,
-                           std::uint64_t n_events) {
-  const std::string dir_name = segment_dir_name(layer);
+// Called when writing one segment directory into the output file.
+void write_segment_directory(TDirectory* parent,
+                             const SegmentSum& segment_sum,
+                             int segment,
+                             std::uint64_t n_events) {
+  const std::string dir_name = segment_dir_name(segment);
   auto* dir = parent->mkdir(dir_name.c_str());
   dir->cd();
 
   auto* hist_dir = dir->mkdir("hists");
   hist_dir->cd();
-  layer_accum.h_hits_evt->Write();
+  segment_sum.h_hits_evt->Write();
 
   // Leave early when this segment never received any virtual channels.
-  if (layer_accum.channels.empty()) {
+  if (segment_sum.channels.empty()) {
     return;
   }
 
   // Build x and y binning from the channels that were actually filled.
-  const auto axis_edges = make_layer_axis_edges(layer_accum);
+  const auto axis_edges = make_segment_axis_edges(segment_sum);
   const auto& x_edges = axis_edges.x_edges;
   const auto& y_edges = axis_edges.y_edges;
 
   auto* h_avg = new TH2D(
       "h_avg",
-      (segment_title(layer) + ";x [mm];y [mm];avg hits/event/virtual channel").c_str(),
+      (segment_title(segment) + ";x [mm];y [mm];avg hits/event/virtual channel").c_str(),
       static_cast<int>(x_edges.size()) - 1,
       x_edges.data(),
       static_cast<int>(y_edges.size()) - 1,
@@ -43,14 +43,14 @@ void write_layer_directory(TDirectory* parent,
 
   auto* h_rate = new TH2D(
       "h_rate",
-      (segment_title(layer) + ";x [mm];y [mm];rate [Hz/virtual channel]").c_str(),
+      (segment_title(segment) + ";x [mm];y [mm];rate [Hz/virtual channel]").c_str(),
       static_cast<int>(x_edges.size()) - 1,
       x_edges.data(),
       static_cast<int>(y_edges.size()) - 1,
       y_edges.data());
 
   // Fill one x-y bin per virtual channel using the accumulated full-sample totals.
-  for (const auto& [channel, stats] : layer_accum.channels) {
+  for (const auto& [channel, stats] : segment_sum.channels) {
     (void)channel;
     const double avg = static_cast<double>(stats.total_hits) / static_cast<double>(n_events);
     const double rate = static_cast<double>(stats.total_hits) / (static_cast<double>(n_events) * kEventWindowSec);
@@ -64,39 +64,39 @@ void write_layer_directory(TDirectory* parent,
 
   draw_and_write(dir, h_avg, "c_avg", true, false);
   draw_and_write(dir, h_rate, "c_rate", true, false);
-  draw_and_write(dir, layer_accum.h_hits_evt, "c_hits_evt", false, true);
+  draw_and_write(dir, segment_sum.h_hits_evt, "c_hits_evt", false, true);
 }
 
 }  // namespace
 
 // Called per event after the hit loop to accumulate x-y occupancy.
-void accumulate_event(std::vector<LayerAccum>& layers,
-                      const std::unordered_map<rates::VirtualLFHCALChannelID, int, rates::VirtualLFHCALChannelIDHash>& event_hits) {
+void accumulate_event(std::vector<SegmentSum>& segment_sums,
+                      const std::unordered_map<rates::VirtualLFHCALChannelID, int, rates::VirtualLFHCALChannelIDHash>& channel_hit_counts) {
   // Each event contributes to its own segment and to the inclusive summed-segment map.
-  for (const auto& [channel, count] : event_hits) {
+  for (const auto& [channel, count] : channel_hit_counts) {
     const int segment = segment_index(channel.layer);
     if (segment < 0) continue;
 
-    auto& layer_accum = layers[segment];
-    auto& stats = layer_accum.channels[channel];  // Create this virtual channel on first sight, otherwise update it.
+    auto& segment_sum = segment_sums[segment];
+    auto& stats = segment_sum.channels[channel];
     stats.x_mm = (static_cast<double>(channel.ix) + 0.5) * kVirtualCellSizeMM;
     stats.y_mm = (static_cast<double>(channel.iy) + 0.5) * kVirtualCellSizeMM;
-    stats.total_hits += count;  // Add this event's hits into the long-running channel total.
+    stats.total_hits += count;
 
-    auto& all_stats = layers[kAllSegmentsIndex].channels[channel];
-    all_stats.x_mm = stats.x_mm;
-    all_stats.y_mm = stats.y_mm;
-    all_stats.total_hits += count;
+    auto& all_segment_stats = segment_sums[kAllSegmentsIndex].channels[channel];
+    all_segment_stats.x_mm = stats.x_mm;
+    all_segment_stats.y_mm = stats.y_mm;
+    all_segment_stats.total_hits += count;
   }
 }
 
 // Called once after the event loop to write x-y occupancy products.
 void write_output(TFile& output,
-                  const std::vector<LayerAccum>& layers,
+                  const std::vector<SegmentSum>& segment_sums,
                   std::uint64_t n_events) {
   auto* parent = output.mkdir("xy");
-  for (int layer = 0; layer <= kNSegments; ++layer) {
-    write_layer_directory(parent, layers[layer], layer, n_events);
+  for (int segment = 0; segment <= kNSegments; ++segment) {
+    write_segment_directory(parent, segment_sums[segment], segment, n_events);
   }
 }
 

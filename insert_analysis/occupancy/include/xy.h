@@ -10,11 +10,11 @@
 
 namespace rates::insert_occupancy::xy {
 
-void accumulate_event(std::vector<LayerAccum>& layers,
-                      const std::unordered_map<rates::VirtualLFHCALChannelID, int, rates::VirtualLFHCALChannelIDHash>& event_hits);
+void accumulate_event(std::vector<SegmentSum>& segment_sums,
+                      const std::unordered_map<rates::VirtualLFHCALChannelID, int, rates::VirtualLFHCALChannelIDHash>& channel_hit_counts);
 
 void write_output(TFile& output,
-                  const std::vector<LayerAccum>& layers,
+                  const std::vector<SegmentSum>& segment_sums,
                   std::uint64_t n_events);
 
 }  // namespace rates::insert_occupancy::xy

@@ -14,7 +14,6 @@ namespace {
 // ----------------------------------------------------------------------------------
 // Constants
 // ----------------------------------------------------------------------------------
-constexpr double kMipGeV = 4e-4;
 constexpr std::array<double, 16> kCoefficients = {0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0, 1.1, 1.2, 1.3, 1.4, 1.5};
 
 // Called when writing one side-level data-rate scan.
@@ -50,20 +49,21 @@ void draw_side_canvas(TDirectory* parent,
 }  // namespace
 
 // Called per event after the hit loop to accumulate side-level data-rate products.
-void accumulate_event(std::array<std::array<ThresholdAccum, 16>, 2>& products,
-                      const std::array<mip::EventEnergyMap, 2>& side_event_energy,
+void accumulate_event(std::array<std::array<ThresholdSum, 16>, 2>& threshold_sums,
+                      const std::array<mip::EventEnergyMap, 2>& side_channel_energy_sum,
                       const rates::InsertToLFHCALMapper& mapper) {
   for (int side = 0; side < 2; ++side) {
     std::unordered_map<rates::VirtualLFHCALChipID, int, rates::VirtualLFHCALChipIDHash> active_counts[16];
 
     // Loop over all virtual channels on this side in this event.
-    for (const auto& [channel, energy] : side_event_energy[side]) {
+    for (const auto& [channel, energy] : side_channel_energy_sum[side]) {
 
       // For each virtual channel, test all MIP thresholds.
       for (std::size_t threshold_index = 0; threshold_index < kCoefficients.size(); ++threshold_index) {
 
         // Skip if this virtual channel does not pass the threshold.
-        if (energy <= kCoefficients[threshold_index] * kMipGeV) continue;
+        const int segment = rates::insert_occupancy::segment_index(channel.layer);
+        if (energy <= kCoefficients[threshold_index] * rates::insert_occupancy::channel_mip_energy_gev(segment)) continue;
         ++active_counts[threshold_index][mapper.chip(channel)];
       }
     }
@@ -75,14 +75,14 @@ void accumulate_event(std::array<std::array<ThresholdAccum, 16>, 2>& products,
         (void)chip;
         event_bits += (kOverheadBits + kBitsPerHit * static_cast<double>(active_channel_count)) * kSamplesPerEvent;
       }
-      products[side][threshold_index].total_bits += event_bits;
+      threshold_sums[side][threshold_index].total_payload_bits += event_bits;
     }
   }
 }
 
 // Called once after the event loop to write side-level data-rate products.
 void write_output(TFile& output,
-                  const std::array<std::array<ThresholdAccum, 16>, 2>& products,
+                  const std::array<std::array<ThresholdSum, 16>, 2>& threshold_sums,
                   std::uint64_t n_events) {
   const double total_time_sec = static_cast<double>(n_events) * kEventWindowSec;
   std::array<std::array<double, kCoefficients.size()>, 2> rates_gbps{};
@@ -90,7 +90,7 @@ void write_output(TFile& output,
   // Convert accumulated side payloads into side data rates.
   for (int side = 0; side < 2; ++side) {
     for (std::size_t threshold_index = 0; threshold_index < kCoefficients.size(); ++threshold_index) {
-      rates_gbps[side][threshold_index] = (products[side][threshold_index].total_bits / total_time_sec) / 1.0e9;
+      rates_gbps[side][threshold_index] = (threshold_sums[side][threshold_index].total_payload_bits / total_time_sec) / 1.0e9;
     }
   }
 

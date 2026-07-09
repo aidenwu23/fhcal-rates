@@ -38,6 +38,21 @@ std::string segment_title(int segment) {
   return "Layers " + std::to_string(kSegmentFirstLayers[segment]) + "-" + std::to_string(kSegmentLastLayers[segment]);
 }
 
+// Called when getting the number of physical layers inside one longitudinal segment.
+int segment_nlayers(int segment) {
+  if (segment < 0 || segment >= kNSegments) return 0;
+  return kSegmentLastLayers[segment] - kSegmentFirstLayers[segment] + 1;
+}
+
+double channel_mip_energy_gev(int segment) {
+  return static_cast<double>(segment_nlayers(segment)) * kTileMipGeV;
+}
+
+std::size_t percentile_index(std::size_t n_values, double percentile) {
+  if (n_values == 0) return 0;
+  return static_cast<std::size_t>(percentile * static_cast<double>(n_values - 1));
+}
+
 // Called when writing one histogram and its canvas to the output file.
 void draw_and_write(TDirectory* canvas_dir, TH1* hist, const char* canvas_name, bool logz, bool logy) {
   canvas_dir->cd();
@@ -67,13 +82,13 @@ std::vector<double> make_axis_edges(const std::set<double>& coords) {
   return edges;
 }
 
-// Called when building x and y bin edges for one layer map.
-AxisEdges2D make_layer_axis_edges(const LayerAccum& layer_accum) {
+// Called when building x and y bin edges for one segment map.
+AxisEdges2D make_segment_axis_edges(const SegmentSum& segment_sum) {
   std::set<double> x_coords;
   std::set<double> y_coords;
 
   // Collect unique channel centers so the output map follows the occupied geometry.
-  for (const auto& [channel_id, stats] : layer_accum.channels) {
+  for (const auto& [channel_id, stats] : segment_sum.channels) {
     (void)channel_id;
     x_coords.insert(stats.x_mm);
     y_coords.insert(stats.y_mm);
@@ -81,13 +96,13 @@ AxisEdges2D make_layer_axis_edges(const LayerAccum& layer_accum) {
   return AxisEdges2D{make_axis_edges(x_coords), make_axis_edges(y_coords)};
 }
 
-// Called once before the file loop to allocate shared layer products.
-void init_layer_accumulations(std::vector<LayerAccum>& layers) {
-  layers.assign(kNSegments + 1, {});
+// Called once before the file loop to allocate shared segment products.
+void init_segment_sums(std::vector<SegmentSum>& segment_sums) {
+  segment_sums.assign(kNSegments + 1, {});
 
   // Each segment gets its own hits-per-event histogram, plus one inclusive slot.
   for (int segment = 0; segment <= kNSegments; ++segment) {
-    layers[segment].h_hits_evt = new TH1D(
+    segment_sums[segment].h_hits_evt = new TH1D(
         "h_hits_evt",
         (segment_title(segment) + ";hits/event;Events").c_str(),
         200,
@@ -97,12 +112,12 @@ void init_layer_accumulations(std::vector<LayerAccum>& layers) {
 }
 
 // Called per event after the hit loop to fill hits-per-event histograms.
-void fill_event_histograms(std::vector<LayerAccum>& layers,
-                           const std::unordered_map<rates::VirtualLFHCALChannelID, int, rates::VirtualLFHCALChannelIDHash>& event_hits) {
+void fill_event_histograms(std::vector<SegmentSum>& segment_sums,
+                           const std::unordered_map<rates::VirtualLFHCALChannelID, int, rates::VirtualLFHCALChannelIDHash>& channel_hit_counts) {
   std::array<int, kNSegments + 1> hits_per_event{};
 
   // Sum this event's hit multiplicity once per segment and once for the inclusive view.
-  for (const auto& [channel, count] : event_hits) {
+  for (const auto& [channel, count] : channel_hit_counts) {
     const int segment = segment_index(channel.layer);
     if (segment < 0) continue;
     hits_per_event[segment] += count;
@@ -111,7 +126,7 @@ void fill_event_histograms(std::vector<LayerAccum>& layers,
 
   // After the event is summed, fill the corresponding per-segment histograms.
   for (int segment = 0; segment <= kNSegments; ++segment) {
-    layers[segment].h_hits_evt->Fill(hits_per_event[segment]);
+    segment_sums[segment].h_hits_evt->Fill(hits_per_event[segment]);
   }
 }
 

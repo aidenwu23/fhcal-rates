@@ -12,19 +12,19 @@ namespace rates::insert_occupancy::side {
 // ----------------------------------------------------------------------------------
 // Structs
 // ----------------------------------------------------------------------------------
-struct ThresholdAccum {
-  double total_bits = 0.0;
+struct ThresholdSum {
+  double total_payload_bits = 0.0;
 };
 
 // ----------------------------------------------------------------------------------
 // Interface
 // ----------------------------------------------------------------------------------
-void accumulate_event(std::array<std::array<ThresholdAccum, 16>, 2>& products,
-                      const std::array<mip::EventEnergyMap, 2>& side_event_energy,
+void accumulate_event(std::array<std::array<ThresholdSum, 16>, 2>& threshold_sums,
+                      const std::array<mip::EventEnergyMap, 2>& side_channel_energy_sum,
                       const rates::InsertToLFHCALMapper& mapper);
 
 void write_output(TFile& output,
-                  const std::array<std::array<ThresholdAccum, 16>, 2>& products,
+                  const std::array<std::array<ThresholdSum, 16>, 2>& threshold_sums,
                   std::uint64_t n_events);
 
 }  // namespace rates::insert_occupancy::side
