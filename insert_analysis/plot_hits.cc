@@ -10,6 +10,7 @@
 #include <TH1.h>
 #include <TH2D.h>
 #include <TLegend.h>
+#include <TLine.h>
 
 #include <podio/Frame.h>
 #include <podio/ROOTReader.h>
@@ -43,6 +44,7 @@ constexpr int kFirstLayer = 1;
 
 // Show a fixed 500 mm radius window around the origin.
 constexpr double kWindowRadiusMm = 500.0;
+constexpr double kVirtualCellSizeMm = 50.0;
 
 const std::array<int, kMaxLayersToPlot> kLayerColors = {kBlue + 1, kRed + 1, kGreen + 2, kMagenta + 1};
 constexpr int kLeftMarkerStyle = 20;
@@ -215,6 +217,23 @@ int main(int argc, char* argv[]) {
 
   TCanvas canvas("c_insert_hits_xy", "Insert hits", 1000, 900);
   frame_hist.Draw();
+
+  // Overlay the 5 x 5 cm virtual-channel boundaries used by the rate analysis.
+  std::vector<TLine> segmentation_lines;
+  segmentation_lines.reserve(2 * static_cast<int>(2.0 * kWindowRadiusMm / kVirtualCellSizeMm + 1.0));
+  for (double coordinate = -kWindowRadiusMm; coordinate <= kWindowRadiusMm; coordinate += kVirtualCellSizeMm) {
+    segmentation_lines.emplace_back(coordinate, -kWindowRadiusMm, coordinate, kWindowRadiusMm);
+    auto& vertical_line = segmentation_lines.back();
+    vertical_line.SetLineColor(kGray + 1);
+    vertical_line.SetLineStyle(3);
+    vertical_line.Draw();
+
+    segmentation_lines.emplace_back(-kWindowRadiusMm, coordinate, kWindowRadiusMm, coordinate);
+    auto& horizontal_line = segmentation_lines.back();
+    horizontal_line.SetLineColor(kGray + 1);
+    horizontal_line.SetLineStyle(3);
+    horizontal_line.Draw();
+  }
 
   // Keep graphs alive until the canvas is written.
   std::vector<TGraph> graphs;

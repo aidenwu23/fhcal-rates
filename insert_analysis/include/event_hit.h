@@ -1,9 +1,12 @@
 #pragma once
 
+#include <cstdint>
+
 namespace rates::insert_analysis {
 
 struct EventHit {
-  // Decoded insert cell coordinates and energy used by both occupancy layouts.
+  // Original insert cell identity, coordinates, and energy shared by all layouts.
+  std::uint64_t cell_id = 0;
   int layer = 0;
   int side = 0;
   double x_mm = 0.0;

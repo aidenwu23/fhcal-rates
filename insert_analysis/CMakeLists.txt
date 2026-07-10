@@ -2,33 +2,41 @@ find_package(ROOT REQUIRED COMPONENTS Core RIO Hist Graf Gpad)
 find_package(podio REQUIRED)
 find_package(EDM4HEP REQUIRED)
 
-add_executable(insert_occupancy occupancy.cc)
+add_executable(insert_occupancy occupancy/occupancy.cc)
 target_compile_features(insert_occupancy PRIVATE cxx_std_17)
 target_include_directories(insert_occupancy PRIVATE
   ${CMAKE_SOURCE_DIR}/scripts/include
   ${CMAKE_CURRENT_SOURCE_DIR}/include
+  ${CMAKE_CURRENT_SOURCE_DIR}/occupancy
   ${CMAKE_CURRENT_SOURCE_DIR})
 target_sources(insert_occupancy PRIVATE
   ${CMAKE_SOURCE_DIR}/scripts/src/utils.cc
   ${CMAKE_SOURCE_DIR}/scripts/src/decode_cell_id.cc
   ${CMAKE_SOURCE_DIR}/scripts/src/insert_to_lfhcal.cc
-  ${CMAKE_CURRENT_SOURCE_DIR}/physical_layers/src/family.cc
-  ${CMAKE_CURRENT_SOURCE_DIR}/physical_layers/src/with_inner_ring.cc
-  ${CMAKE_CURRENT_SOURCE_DIR}/physical_layers/src/no_inner_ring.cc
-  ${CMAKE_CURRENT_SOURCE_DIR}/physical_layers/src/shared.cc
-  ${CMAKE_CURRENT_SOURCE_DIR}/physical_layers/src/xy.cc
-  ${CMAKE_CURRENT_SOURCE_DIR}/physical_layers/src/channel.cc
-  ${CMAKE_CURRENT_SOURCE_DIR}/physical_layers/src/mip.cc
-  ${CMAKE_CURRENT_SOURCE_DIR}/lfhcal_segments/src/family.cc
-  ${CMAKE_CURRENT_SOURCE_DIR}/lfhcal_segments/src/with_inner_ring.cc
-  ${CMAKE_CURRENT_SOURCE_DIR}/lfhcal_segments/src/no_inner_ring.cc
-  ${CMAKE_CURRENT_SOURCE_DIR}/lfhcal_segments/src/shared.cc
-  ${CMAKE_CURRENT_SOURCE_DIR}/lfhcal_segments/src/xy.cc
-  ${CMAKE_CURRENT_SOURCE_DIR}/lfhcal_segments/src/channel.cc
-  ${CMAKE_CURRENT_SOURCE_DIR}/lfhcal_segments/src/chip.cc
-  ${CMAKE_CURRENT_SOURCE_DIR}/lfhcal_segments/src/mip.cc
-  ${CMAKE_CURRENT_SOURCE_DIR}/lfhcal_segments/src/radius.cc
-  ${CMAKE_CURRENT_SOURCE_DIR}/lfhcal_segments/src/side.cc)
+  ${CMAKE_CURRENT_SOURCE_DIR}/occupancy/original_insert/src/family.cc
+  ${CMAKE_CURRENT_SOURCE_DIR}/occupancy/original_insert/src/with_inner_ring.cc
+  ${CMAKE_CURRENT_SOURCE_DIR}/occupancy/original_insert/src/no_inner_ring.cc
+  ${CMAKE_CURRENT_SOURCE_DIR}/occupancy/original_insert/src/shared.cc
+  ${CMAKE_CURRENT_SOURCE_DIR}/occupancy/original_insert/src/xy.cc
+  ${CMAKE_CURRENT_SOURCE_DIR}/occupancy/original_insert/src/channel.cc
+  ${CMAKE_CURRENT_SOURCE_DIR}/occupancy/original_insert/src/mip.cc
+  ${CMAKE_CURRENT_SOURCE_DIR}/occupancy/lfhcal_tiles/src/family.cc
+  ${CMAKE_CURRENT_SOURCE_DIR}/occupancy/lfhcal_tiles/src/with_inner_ring.cc
+  ${CMAKE_CURRENT_SOURCE_DIR}/occupancy/lfhcal_tiles/src/no_inner_ring.cc
+  ${CMAKE_CURRENT_SOURCE_DIR}/occupancy/lfhcal_tiles/src/shared.cc
+  ${CMAKE_CURRENT_SOURCE_DIR}/occupancy/lfhcal_tiles/src/xy.cc
+  ${CMAKE_CURRENT_SOURCE_DIR}/occupancy/lfhcal_tiles/src/channel.cc
+  ${CMAKE_CURRENT_SOURCE_DIR}/occupancy/lfhcal_tiles/src/mip.cc
+  ${CMAKE_CURRENT_SOURCE_DIR}/occupancy/full_lfhcal/src/family.cc
+  ${CMAKE_CURRENT_SOURCE_DIR}/occupancy/full_lfhcal/src/with_inner_ring.cc
+  ${CMAKE_CURRENT_SOURCE_DIR}/occupancy/full_lfhcal/src/no_inner_ring.cc
+  ${CMAKE_CURRENT_SOURCE_DIR}/occupancy/full_lfhcal/src/shared.cc
+  ${CMAKE_CURRENT_SOURCE_DIR}/occupancy/full_lfhcal/src/xy.cc
+  ${CMAKE_CURRENT_SOURCE_DIR}/occupancy/full_lfhcal/src/channel.cc
+  ${CMAKE_CURRENT_SOURCE_DIR}/occupancy/full_lfhcal/src/chip.cc
+  ${CMAKE_CURRENT_SOURCE_DIR}/occupancy/full_lfhcal/src/mip.cc
+  ${CMAKE_CURRENT_SOURCE_DIR}/occupancy/full_lfhcal/src/radius.cc
+  ${CMAKE_CURRENT_SOURCE_DIR}/occupancy/full_lfhcal/src/side.cc)
 target_link_libraries(
   insert_occupancy
   PRIVATE
