@@ -86,6 +86,7 @@ std::string find_insert_collection(const podio::Frame& frame) {
 }
 
 void draw_and_write(TDirectory* dir, TH1D* hist, const std::string& canvas_name) {
+  // Keep the canvas beside the histogram in the requested output directory.
   dir->cd();
   TCanvas canvas(canvas_name.c_str(), hist->GetTitle(), 1000, 800);
   canvas.SetLogy();
@@ -156,13 +157,13 @@ int main(int argc, char* argv[]) {
 
       const auto& hits = frame.get<edm4hep::SimCalorimeterHitCollection>(collection_name);
 
-      // Per event, loop over all hits.
+      // Loop over all hits in this insert collection.
       for (const auto& hit : hits) {
         const std::uint64_t cell_id = static_cast<std::uint64_t>(hit.getCellID());
         const auto cell = decoder.cell(cell_id);
         if (cell.layer < 1 || cell.layer > 60) continue;
-        hist->Fill(hit.getEnergy());  // Add this accepted insert hit to the global energy spectrum.
-        ++n_hits;
+        hist->Fill(hit.getEnergy()); // Add this accepted insert hit to the global energy spectrum.
+        ++n_hits; // Track whether the final histogram received any insert hits.
       }
     }
   }

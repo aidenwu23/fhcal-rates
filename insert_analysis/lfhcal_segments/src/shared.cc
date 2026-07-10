@@ -1,4 +1,4 @@
-#include "shared.h"
+#include "lfhcal_segments/include/shared.h"
 
 #include <TCanvas.h>
 #include <TH2.h>
@@ -6,7 +6,7 @@
 #include <array>
 #include <string>
 
-namespace rates::insert_occupancy {
+namespace rates::insert_analysis::lfhcal_segments {
 
 // Called when mapping a physical layer number into one longitudinal segment.
 int segment_index(int layer) {
@@ -17,35 +17,52 @@ int segment_index(int layer) {
   return -1;
 }
 
-// Called when naming one longitudinal segment directory.
-const char* segment_dir_name(int segment) {
-  static constexpr std::array<const char*, kNSegments + 1> kNames = {
-      "segment1",
-      "segment2",
-      "segment3",
-      "segment4",
-      "segment5",
-      "segment6",
-      "segment7",
-      "sum_segments",
-  };
-  return kNames[segment];
+int mapped_layer(const OccupancyMode& mode, int physical_layer) {
+  // Store the zero-based segment index as the shared virtual-channel layer.
+  (void)mode;
+  const int segment = segment_index(physical_layer);
+  return segment;
 }
 
-// Called when building one longitudinal segment title.
-std::string segment_title(int segment) {
-  if (segment == kAllSegmentsIndex) return "Summed segments";
-  return "Layers " + std::to_string(kSegmentFirstLayers[segment]) + "-" + std::to_string(kSegmentLastLayers[segment]);
+int group_count(const OccupancyMode& mode) {
+  (void)mode;
+  return kNSegments;
 }
 
-// Called when getting the number of physical layers inside one longitudinal segment.
-int segment_nlayers(int segment) {
-  if (segment < 0 || segment >= kNSegments) return 0;
-  return kSegmentLastLayers[segment] - kSegmentFirstLayers[segment] + 1;
+int all_groups_index(const OccupancyMode& mode) {
+  return group_count(mode);
 }
 
-double channel_mip_energy_gev(int segment) {
-  return static_cast<double>(segment_nlayers(segment)) * kTileMipGeV;
+std::string group_dir_name(const OccupancyMode& mode, int group) {
+  if (group == all_groups_index(mode)) {
+    return "sum_segments";
+  }
+  return "segment" + std::to_string(group + 1);
+}
+
+std::string group_title(const OccupancyMode& mode, int group) {
+  if (group == all_groups_index(mode)) {
+    return "Summed segments";
+  }
+  return "Layers " + std::to_string(kSegmentFirstLayers[group]) + "-" + std::to_string(kSegmentLastLayers[group]);
+}
+
+double channel_mip_energy_gev(const OccupancyMode& mode, int mapped_layer_value) {
+  (void)mode;
+  if (mapped_layer_value < 0 || mapped_layer_value >= kNSegments) return 0.0;
+  return static_cast<double>(kSegmentLastLayers[mapped_layer_value] -
+                             kSegmentFirstLayers[mapped_layer_value] + 1) *
+         kTileMipGeV;
+}
+
+bool keep_channel(const OccupancyMode& mode, const rates::VirtualLFHCALChannelID& channel) {
+  if (!mode.drop_inner_ring) return true;
+
+  // Measure the virtual-channel center from the insert's offset inner-ring center.
+  const double x_mm = (static_cast<double>(channel.ix) + 0.5) * kVirtualCellSizeMM;
+  const double y_mm = (static_cast<double>(channel.iy) + 0.5) * kVirtualCellSizeMM;
+  const double dx_mm = x_mm - kInnerRingCenterXMM;
+  return dx_mm * dx_mm + y_mm * y_mm >= kInnerRingRadiusMM * kInnerRingRadiusMM;
 }
 
 std::size_t percentile_index(std::size_t n_values, double percentile) {
@@ -60,6 +77,7 @@ void draw_and_write(TDirectory* canvas_dir, TH1* hist, const char* canvas_name, 
   if (logz) canvas.SetLogz();
   if (logy) canvas.SetLogy();
   hist->SetStats(false);
+  // ROOT uses different draw options for one- and two-dimensional histograms.
   const bool is2d = hist->InheritsFrom(TH2::Class());
   hist->Draw(is2d ? "colz" : "hist");
   canvas.Write();
@@ -97,14 +115,14 @@ AxisEdges2D make_segment_axis_edges(const SegmentSum& segment_sum) {
 }
 
 // Called once before the file loop to allocate shared segment products.
-void init_segment_sums(std::vector<SegmentSum>& segment_sums) {
-  segment_sums.assign(kNSegments + 1, {});
+void init_segment_sums(std::vector<SegmentSum>& segment_sums, const OccupancyMode& mode) {
+  segment_sums.assign(group_count(mode) + 1, {});
 
   // Each segment gets its own hits-per-event histogram, plus one inclusive slot.
-  for (int segment = 0; segment <= kNSegments; ++segment) {
-    segment_sums[segment].h_hits_evt = new TH1D(
+  for (int group = 0; group <= group_count(mode); ++group) {
+    segment_sums[group].h_hits_evt = new TH1D(
         "h_hits_evt",
-        (segment_title(segment) + ";hits/event;Events").c_str(),
+        (group_title(mode, group) + ";hits/event;Events").c_str(),
         200,
         0,
         2000);
@@ -113,21 +131,22 @@ void init_segment_sums(std::vector<SegmentSum>& segment_sums) {
 
 // Called per event after the hit loop to fill hits-per-event histograms.
 void fill_event_histograms(std::vector<SegmentSum>& segment_sums,
+                           const OccupancyMode& mode,
                            const std::unordered_map<rates::VirtualLFHCALChannelID, int, rates::VirtualLFHCALChannelIDHash>& channel_hit_counts) {
-  std::array<int, kNSegments + 1> hits_per_event{};
+  std::vector<int> hits_per_event(group_count(mode) + 1, 0);
 
   // Sum this event's hit multiplicity once per segment and once for the inclusive view.
   for (const auto& [channel, count] : channel_hit_counts) {
-    const int segment = segment_index(channel.layer);
-    if (segment < 0) continue;
-    hits_per_event[segment] += count;
-    hits_per_event[kAllSegmentsIndex] += count;
+    const int group = channel.layer;
+    if (group < 0 || group >= all_groups_index(mode)) continue;
+    hits_per_event[group] += count;
+    hits_per_event[all_groups_index(mode)] += count;
   }
 
   // After the event is summed, fill the corresponding per-segment histograms.
-  for (int segment = 0; segment <= kNSegments; ++segment) {
-    segment_sums[segment].h_hits_evt->Fill(hits_per_event[segment]);
+  for (int group = 0; group <= group_count(mode); ++group) {
+    segment_sums[group].h_hits_evt->Fill(hits_per_event[group]);
   }
 }
 
-}  // namespace rates::insert_occupancy
+}  // namespace rates::insert_analysis::lfhcal_segments

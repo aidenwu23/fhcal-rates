@@ -1,6 +1,6 @@
-#include "radius.h"
+#include "lfhcal_segments/include/radius.h"
 
-#include "shared.h"
+#include "lfhcal_segments/include/shared.h"
 
 #include <TCanvas.h>
 #include <TGraph.h>
@@ -12,7 +12,7 @@
 #include <string>
 #include <vector>
 
-namespace rates::insert_occupancy::radius {
+namespace rates::insert_analysis::lfhcal_segments::radius {
 namespace {
 // ----------------------------------------------------------------------------------
 // Constants and structs
@@ -90,6 +90,7 @@ void draw_overlay(TDirectory* dir,
 
 // Called per event after the hit loop to accumulate radius-scan products.
 void accumulate_event(std::array<ThresholdSum, 3>& threshold_sums,
+                      const OccupancyMode& mode,
                       const mip::EventEnergyMap& channel_energies,
                       const rates::InsertToLFHCALMapper& mapper) {
   // Each threshold gets its own per-event map from virtual chip to fired-channel count.
@@ -102,8 +103,7 @@ void accumulate_event(std::array<ThresholdSum, 3>& threshold_sums,
     for (std::size_t threshold_index = 0; threshold_index < kCoefficients.size(); ++threshold_index) {
 
       // Skip if this virtual channel does not pass the threshold.
-      const int segment = rates::insert_occupancy::segment_index(channel.layer);
-      if (energy <= kCoefficients[threshold_index] * rates::insert_occupancy::channel_mip_energy_gev(segment)) continue;
+      if (energy <= kCoefficients[threshold_index] * rates::insert_analysis::lfhcal_segments::channel_mip_energy_gev(mode, channel.layer)) continue;
       ++active_counts[threshold_index][mapper.chip(channel)];  // Count one passing channel on this chip for this event.
     }
   }
@@ -119,9 +119,10 @@ void accumulate_event(std::array<ThresholdSum, 3>& threshold_sums,
 }
 
 // Called once after the event loop to write radius-scan products.
-void write_output(TFile& output,
+void write_output(TDirectory* parent,
                   const std::array<ThresholdSum, 3>& threshold_sums,
                   std::uint64_t n_events) {
+  // Convert full-sample payloads into rates using the simulated event window.
   const double total_time_sec = static_cast<double>(n_events) * kEventWindowSec;
   std::array<double, kRadiusBins> radius_centers_mm{};
   const double width = kRadiusMaxMm / static_cast<double>(kRadiusBins);
@@ -131,10 +132,11 @@ void write_output(TFile& output,
     radius_centers_mm[i] = (static_cast<double>(i) + 0.5) * width;
   }
 
-  auto* parent = output.mkdir("data_rate_vs_radius");
+  auto* dir = parent->mkdir("data_rate_vs_radius");
 
   // Loop over all thresholds and convert per-chip data rates into radius-binned percentiles.
   for (std::size_t threshold_index = 0; threshold_index < kCoefficients.size(); ++threshold_index) {
+    // Keep the chip rates in separate radius bins before computing tail percentiles.
     std::array<RadiusBinStats, kRadiusBins> bins{};
 
     // For each threshold, loop over all virtual chips.
@@ -155,13 +157,13 @@ void write_output(TFile& output,
       if (rates_gbps.empty()) continue;
 
       std::sort(rates_gbps.begin(), rates_gbps.end());
-      percentile_values[0][bin] = rates_gbps[rates::insert_occupancy::percentile_index(rates_gbps.size(), 0.95)];
-      percentile_values[1][bin] = rates_gbps[rates::insert_occupancy::percentile_index(rates_gbps.size(), 0.99)];
+      percentile_values[0][bin] = rates_gbps[rates::insert_analysis::lfhcal_segments::percentile_index(rates_gbps.size(), 0.95)];
+      percentile_values[1][bin] = rates_gbps[rates::insert_analysis::lfhcal_segments::percentile_index(rates_gbps.size(), 0.99)];
     }
 
-    auto* dir = parent->mkdir(threshold_tag(kCoefficients[threshold_index]).c_str());
-    draw_overlay(dir, kCoefficients[threshold_index], percentile_values, radius_centers_mm);
+    auto* threshold_dir = dir->mkdir(threshold_tag(kCoefficients[threshold_index]).c_str());
+    draw_overlay(threshold_dir, kCoefficients[threshold_index], percentile_values, radius_centers_mm);
   }
 }
 
-}  // namespace rates::insert_occupancy::radius
+}  // namespace rates::insert_analysis::lfhcal_segments::radius

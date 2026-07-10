@@ -48,6 +48,7 @@ const std::array<int, kMaxLayersToPlot> kLayerColors = {kBlue + 1, kRed + 1, kGr
 constexpr int kLeftMarkerStyle = 20;
 constexpr int kRightMarkerStyle = 21;
 struct Bucket {
+  // Unique physical cells and their centers for one layer and insert side.
   std::unordered_set<std::uint64_t> cells;
   std::vector<double> xs;
   std::vector<double> ys;
@@ -107,7 +108,7 @@ std::string find_insert_collection(const podio::Frame& frame) {
 int main(int argc, char* argv[]) {
   TH1::AddDirectory(false);
 
-  // Parse args and find every ROOT file in the input directory.
+  // Parse arguments and find every ROOT file in the input directory.
   const auto args = parse_args(argc, argv);
   const auto files = rates::find_root_files(args.input_dir);
   if (files.empty()) {
@@ -147,6 +148,7 @@ int main(int argc, char* argv[]) {
       }
       if (collection_name.empty() || !rates::has_collection(frame, collection_name)) continue;
 
+      // Keep one marker per physical cell while retaining its first observed position.
       const auto& event_hits = frame.get<edm4hep::SimCalorimeterHitCollection>(collection_name);
 
       // Loop over all insert hits.
@@ -187,11 +189,6 @@ int main(int argc, char* argv[]) {
   }
   std::cout << "layers " << kFirstLayer << "-" << (kFirstLayer + kMaxLayersToPlot - 1)
             << " total: " << total_unique_cells << " unique cells\n";
-
-  if (total_unique_cells == 0) {
-    std::cerr << "No insert hits found in " << args.input_dir << "\n";
-    return 1;
-  }
 
   if (total_unique_cells == 0) {
     std::cerr << "No insert hits found in " << args.input_dir << "\n";
@@ -271,6 +268,7 @@ int main(int argc, char* argv[]) {
     }
   }
 
+  // Write the frame, marker graphs, and final canvas into the output file.
   layer_legend.Draw();
   side_legend.Draw();
 

@@ -1,6 +1,6 @@
-#include "mip.h"
+#include "lfhcal_segments/include/mip.h"
 
-#include "shared.h"
+#include "lfhcal_segments/include/shared.h"
 
 #include <TCanvas.h>
 #include <TGraph.h>
@@ -12,7 +12,7 @@
 #include <unordered_set>
 #include <vector>
 
-namespace rates::insert_occupancy::mip {
+namespace rates::insert_analysis::lfhcal_segments::mip {
 namespace {
 // ----------------------------------------------------------------------------------
 // Constants
@@ -78,11 +78,13 @@ void draw_overlay(TDirectory* dir,
 
 // Called per event after the hit loop to accumulate MIP-threshold products.
 void accumulate_event(std::array<ChannelThresholdSum, 16>& channel_threshold_sums,
+                      std::array<ChannelDataThresholdSum, 16>& channel_data_threshold_sums,
                       std::array<ChipThresholdSum, 16>& chip_threshold_sums,
-                      std::array<DataThresholdSum, 16>& data_threshold_sums,
+                      std::array<ChipDataThresholdSum, 16>& chip_data_threshold_sums,
+                      const OccupancyMode& mode,
                       const EventEnergyMap& channel_energies,
                       const rates::InsertToLFHCALMapper& mapper) {
-  // These per-threshold containers live for one event, then get folded into the full sample.
+  // These per-threshold containers exist for one event, then fold into the full sample.
   std::unordered_map<rates::VirtualLFHCALChipID,
                      std::unordered_set<rates::VirtualLFHCALChannelID, rates::VirtualLFHCALChannelIDHash>,
                      rates::VirtualLFHCALChipIDHash>
@@ -96,11 +98,12 @@ void accumulate_event(std::array<ChannelThresholdSum, 16>& channel_threshold_sum
     for (std::size_t threshold_index = 0; threshold_index < kCoefficients.size(); ++threshold_index) {
 
       // Skip if this virtual channel does not pass the threshold.
-      const int segment = rates::insert_occupancy::segment_index(channel.layer);
-      if (energy <= kCoefficients[threshold_index] * rates::insert_occupancy::channel_mip_energy_gev(segment)) continue;
+      if (energy <= kCoefficients[threshold_index] * rates::insert_analysis::lfhcal_segments::channel_mip_energy_gev(mode, channel.layer)) continue;
 
       // Promote the passing channel into the full-sample counters.
-      ++channel_threshold_sums[threshold_index].pass_counts[channel];
+      ++channel_threshold_sums[threshold_index].pass_counts[channel]; // Count one passing event for this channel.
+      channel_data_threshold_sums[threshold_index].payload_bits[channel] +=
+          (kOverheadBits + kBitsPerHit) * kSamplesPerEvent;
       const auto chip = mapper.chip(channel);
       fired_chips[threshold_index].insert(chip);                   // Track that this chip fired at least once this event.
       fired_channels_by_chip[threshold_index][chip].insert(channel);  // Track how many distinct channels fired on that chip.
@@ -115,21 +118,24 @@ void accumulate_event(std::array<ChannelThresholdSum, 16>& channel_threshold_sum
     for (const auto& [chip, fired_channels] : fired_channels_by_chip[threshold_index]) {
       const double event_bits =
           (kOverheadBits + kBitsPerHit * static_cast<double>(fired_channels.size())) * kSamplesPerEvent;
-      data_threshold_sums[threshold_index].payload_bits[chip] += event_bits;
+      chip_data_threshold_sums[threshold_index].payload_bits[chip] += event_bits;
     }
   }
 }
 
 // Called once after the event loop to write MIP-scan products.
-void write_output(TFile& output,
+void write_output(TDirectory* parent,
                   const std::array<ChannelThresholdSum, 16>& channel_threshold_sums,
+                  const std::array<ChannelDataThresholdSum, 16>& channel_data_threshold_sums,
                   const std::array<ChipThresholdSum, 16>& chip_threshold_sums,
-                  const std::array<DataThresholdSum, 16>& data_threshold_sums,
+                  const std::array<ChipDataThresholdSum, 16>& chip_data_threshold_sums,
                   std::uint64_t n_events) {
+  // Convert full-sample counts into rates using the simulated event window.
   const double total_time_sec = static_cast<double>(n_events) * kEventWindowSec;
-  std::array<std::array<double, 16>, 2> channel_percentile_values{};
-  std::array<std::array<double, 16>, 2> chip_percentile_values{};
-  std::array<std::array<double, 16>, 2> data_percentile_values{};
+  std::array<std::array<double, 16>, 2> channel_hit_rate_percentile_values{};
+  std::array<std::array<double, 16>, 2> channel_data_rate_percentile_values{};
+  std::array<std::array<double, 16>, 2> chip_hit_rate_percentile_values{};
+  std::array<std::array<double, 16>, 2> chip_data_rate_percentile_values{};
 
   // Loop over all thresholds and convert accumulated counts into percentile curves.
   for (std::size_t threshold_index = 0; threshold_index < kCoefficients.size(); ++threshold_index) {
@@ -143,11 +149,26 @@ void write_output(TFile& output,
     if (!channel_rates_hz.empty()) {
       std::sort(channel_rates_hz.begin(), channel_rates_hz.end());
       for (std::size_t percentile_slot = 0; percentile_slot < kPercentiles.size(); ++percentile_slot) {
-        channel_percentile_values[percentile_slot][threshold_index] =
-            channel_rates_hz[rates::insert_occupancy::percentile_index(channel_rates_hz.size(), kPercentiles[percentile_slot])];
+        channel_hit_rate_percentile_values[percentile_slot][threshold_index] =
+            channel_rates_hz[rates::insert_analysis::lfhcal_segments::percentile_index(channel_rates_hz.size(), kPercentiles[percentile_slot])];
       }
     }
 
+    // Build the matching data-rate distribution from accumulated channel payload bits.
+    std::vector<double> channel_data_rates_gbps;
+    for (const auto& [channel, payload_bits] : channel_data_threshold_sums[threshold_index].payload_bits) {
+      (void)channel;
+      channel_data_rates_gbps.push_back((payload_bits / total_time_sec) / 1.0e9);
+    }
+    if (!channel_data_rates_gbps.empty()) {
+      std::sort(channel_data_rates_gbps.begin(), channel_data_rates_gbps.end());
+      for (std::size_t percentile_slot = 0; percentile_slot < kPercentiles.size(); ++percentile_slot) {
+        channel_data_rate_percentile_values[percentile_slot][threshold_index] =
+            channel_data_rates_gbps[rates::insert_analysis::lfhcal_segments::percentile_index(channel_data_rates_gbps.size(), kPercentiles[percentile_slot])];
+      }
+    }
+
+    // Repeat the percentile reduction for virtual chips.
     std::vector<double> chip_rates_hz;
 
     // Collect one virtual-chip hit rate for every chip that ever passed.
@@ -160,59 +181,66 @@ void write_output(TFile& output,
 
       // Do it for all requested percentiles.
       for (std::size_t percentile_slot = 0; percentile_slot < kPercentiles.size(); ++percentile_slot) {
-        chip_percentile_values[percentile_slot][threshold_index] =
-            chip_rates_hz[rates::insert_occupancy::percentile_index(chip_rates_hz.size(), kPercentiles[percentile_slot])];
+        chip_hit_rate_percentile_values[percentile_slot][threshold_index] =
+            chip_rates_hz[rates::insert_analysis::lfhcal_segments::percentile_index(chip_rates_hz.size(), kPercentiles[percentile_slot])];
       }
     }
 
-    std::vector<double> data_rates_gbps;
+    std::vector<double> chip_data_rates_gbps;
 
-    // Collect one virtual-chip data rate for every chip that ever passed.
-    for (const auto& [chip, payload_bits] : data_threshold_sums[threshold_index].payload_bits) {
+    for (const auto& [chip, payload_bits] : chip_data_threshold_sums[threshold_index].payload_bits) {
       (void)chip;
-      data_rates_gbps.push_back((payload_bits / total_time_sec) / 1.0e9);
+      chip_data_rates_gbps.push_back((payload_bits / total_time_sec) / 1.0e9);
     }
-    if (!data_rates_gbps.empty()) {
-      std::sort(data_rates_gbps.begin(), data_rates_gbps.end());
-
-      // Do it for all percentiles requested.
+    if (!chip_data_rates_gbps.empty()) {
+      std::sort(chip_data_rates_gbps.begin(), chip_data_rates_gbps.end());
       for (std::size_t percentile_slot = 0; percentile_slot < kPercentiles.size(); ++percentile_slot) {
-        data_percentile_values[percentile_slot][threshold_index] =
-            data_rates_gbps[rates::insert_occupancy::percentile_index(data_rates_gbps.size(), kPercentiles[percentile_slot])];
+        chip_data_rate_percentile_values[percentile_slot][threshold_index] =
+            chip_data_rates_gbps[rates::insert_analysis::lfhcal_segments::percentile_index(chip_data_rates_gbps.size(), kPercentiles[percentile_slot])];
       }
     }
   }
 
-  // Write the three scan families into separate directories in the output file.
-  auto* channel_dir = output.mkdir("channel_rate_vs_mip");
-  draw_overlay(channel_dir,
-               "c_channel_rate_vs_mip",
-               "Virtual channel tail rates vs MIP coefficient;MIP coefficient;rate [Hz]",
-               "g_channel_rate_vs_mip",
+  // Write separate percentile overlays for channel and chip hit and data rates.
+  auto* channel_hit_dir = parent->mkdir("channel_hit_rate_vs_mip");
+  draw_overlay(channel_hit_dir,
+               "c_channel_hit_rate_vs_mip",
+               "Virtual channel tail hit rates vs MIP coefficient;MIP coefficient;rate [Hz]",
+               "g_channel_hit_rate_vs_mip",
                "rate [Hz]",
                0.0,
                2.0e5,
-               channel_percentile_values);
+               channel_hit_rate_percentile_values);
 
-  auto* chip_dir = output.mkdir("chip_rate_vs_mip");
-  draw_overlay(chip_dir,
-               "c_chip_rate_vs_mip",
-               "Virtual chip tail rates vs MIP coefficient;MIP coefficient;rate [Hz]",
-               "g_chip_rate_vs_mip",
+  auto* channel_data_dir = parent->mkdir("channel_data_rate_vs_mip");
+  draw_overlay(channel_data_dir,
+               "c_channel_data_rate_vs_mip",
+               "Virtual channel tail data rates vs MIP coefficient;MIP coefficient;data rate [Gb/s]",
+               "g_channel_data_rate_vs_mip",
+               "data rate [Gb/s]",
+               0.0,
+               0.13,
+               channel_data_rate_percentile_values);
+
+  auto* chip_hit_dir = parent->mkdir("chip_hit_rate_vs_mip");
+  draw_overlay(chip_hit_dir,
+               "c_chip_hit_rate_vs_mip",
+               "Virtual chip tail hit rates vs MIP coefficient;MIP coefficient;rate [Hz]",
+               "g_chip_hit_rate_vs_mip",
                "rate [Hz]",
                8.0e4,
                4.2e5,
-               chip_percentile_values);
+               chip_hit_rate_percentile_values);
 
-  auto* data_dir = output.mkdir("data_rate_vs_mip");
-  draw_overlay(data_dir,
-               "c_data_rate_vs_mip",
+  auto* chip_data_dir = parent->mkdir("chip_data_rate_vs_mip");
+  draw_overlay(chip_data_dir,
+               "c_chip_data_rate_vs_mip",
                "Virtual chip tail data rates vs MIP coefficient;MIP coefficient;data rate [Gb/s]",
-               "g_data_rate_vs_mip",
+               "g_chip_data_rate_vs_mip",
                "data rate [Gb/s]",
                0.0,
                0.9,
-               data_percentile_values);
+               chip_data_rate_percentile_values);
 }
 
-}  // namespace rates::insert_occupancy::mip
+}  // namespace rates::insert_analysis::lfhcal_segments::mip

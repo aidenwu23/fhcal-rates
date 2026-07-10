@@ -37,6 +37,7 @@ namespace {
 constexpr const char* kCollectionMatch = "HcalEndcapPInsert";
 
 struct OriginInfo {
+  // Plot label and ROOT color for one generator-status origin family.
   const char* label;
   int color;
 };
@@ -124,6 +125,7 @@ int main(int argc, char* argv[]) {
   fs::path output_path = args.output_file;
   if (output_path.has_parent_path()) fs::create_directories(output_path.parent_path());
 
+  // Create one energy spectrum for each broad background origin.
   std::vector<TH1D*> hists;
   hists.reserve(kOrigins.size());
   const auto edges = rates::log_edges(260, 1e-10, 10.0);
@@ -138,7 +140,7 @@ int main(int argc, char* argv[]) {
   std::uint64_t n_events = 0;
   rates::FileProgress progress(files.size(), std::cerr);
 
-  // Loop thru all files.
+  // Loop over all files.
   for (const auto& path : files) {
     progress.tick();
 
@@ -146,7 +148,7 @@ int main(int argc, char* argv[]) {
     reader.openFile(path.string());
     const std::size_t total_events = reader.getEntries("events");
 
-    // Per file, loop thru all events.
+    // Loop over all events in this file.
     for (std::size_t event_index = 0; event_index < total_events; ++event_index) {
       auto data = reader.readEntry("events", event_index);
       if (!data) continue;
@@ -156,25 +158,26 @@ int main(int argc, char* argv[]) {
         insert_collection_name = find_insert_collection(frame);
       }
       if (insert_collection_name.empty() || !rates::has_collection(frame, insert_collection_name)) continue;
-      ++n_events;
+      ++n_events; // Count events that contribute to the composition sample.
 
       const auto& hits = frame.get<edm4hep::SimCalorimeterHitCollection>(insert_collection_name);
 
-      // Per event, loop thru all hits.
+      // Loop over insert hits.
       for (const auto& hit : hits) {
+        // Sum this hit's contributions before filling one spectrum per origin family.
         std::vector<double> energy_by_origin(kOrigins.size(), 0.0);
 
-        // Per hit, loop thru all hit contributioons.
+        // Loop over all hit contributions.
         for (const auto& contribution : hit.getContributions()) {
 
           // Convert generatorStatus into an origin type and increment the energy.
           const int origin = rates::origin_index(contribution.getParticle().getGeneratorStatus());
           const double energy = contribution.getEnergy();
           if (origin < 0 || energy <= 0.0) continue;
-          energy_by_origin[origin] += energy;
+          energy_by_origin[origin] += energy; // Combine contributions from the same origin family.
         }
 
-        // After accumulating all hit contributions by origin, histogram this hit.
+        // Fill each origin with its total energy contribution to this simulated hit.
         for (std::size_t origin = 0; origin < energy_by_origin.size(); ++origin) {
           if (energy_by_origin[origin] <= 0.0) continue;
           hists[origin]->Fill(energy_by_origin[origin]);
@@ -200,6 +203,7 @@ int main(int argc, char* argv[]) {
     return 1;
   }
 
+  // Draw all origin spectra together after finding a common vertical scale.
   output.cd();
   TCanvas canvas("c_edep_hit", "Insert hit origin", 1000, 800);
   canvas.SetLogx();

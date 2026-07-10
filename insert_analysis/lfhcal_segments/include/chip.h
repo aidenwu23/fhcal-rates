@@ -1,19 +1,21 @@
 #pragma once
 
 #include "insert_to_lfhcal.h"
+#include "lfhcal_segments/include/shared.h"
 
-#include <TFile.h>
+#include <TDirectory.h>
 #include <TH1D.h>
 
 #include <cstdint>
 #include <unordered_map>
 
-namespace rates::insert_occupancy::chip {
+namespace rates::insert_analysis::lfhcal_segments::chip {
 
 // ----------------------------------------------------------------------------------
 // Structs
 // ----------------------------------------------------------------------------------
 struct ChipStats {
+  // Chip center and totals accumulated across all accepted events.
   double x_mm = 0.0;
   double y_mm = 0.0;
   std::uint64_t total_hits = 0;
@@ -21,6 +23,7 @@ struct ChipStats {
 };
 
 struct ChipSum {
+  // One chip entry per virtual chip seen in the sample.
   std::unordered_map<rates::VirtualLFHCALChipID, ChipStats, rates::VirtualLFHCALChipIDHash> chips;
   TH1D* h_hits_evt = nullptr;
 };
@@ -28,12 +31,13 @@ struct ChipSum {
 // ----------------------------------------------------------------------------------
 // Interface
 // ----------------------------------------------------------------------------------
-void init_chip_sum(ChipSum& chip_sum);
+void init_chip_sum(ChipSum& chip_sum, const OccupancyMode& mode);
 void accumulate_event(ChipSum& chip_sum,
                       const std::unordered_map<rates::VirtualLFHCALChannelID, int, rates::VirtualLFHCALChannelIDHash>& channel_hit_counts,
                       const rates::InsertToLFHCALMapper& mapper);
-void write_output(TFile& output,
+void write_output(TDirectory* parent,
+                  const OccupancyMode& mode,
                   const ChipSum& chip_sum,
                   std::uint64_t n_events);
 
-}  // namespace rates::insert_occupancy::chip
+}  // namespace rates::insert_analysis::lfhcal_segments::chip

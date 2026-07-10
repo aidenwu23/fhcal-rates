@@ -1,6 +1,6 @@
-#include "side.h"
+#include "lfhcal_segments/include/side.h"
 
-#include "shared.h"
+#include "lfhcal_segments/include/shared.h"
 
 #include <TCanvas.h>
 #include <TGraph.h>
@@ -10,7 +10,7 @@
 #include <string>
 #include <unordered_map>
 
-namespace rates::insert_occupancy::side {
+namespace rates::insert_analysis::lfhcal_segments::side {
 namespace {
 // ----------------------------------------------------------------------------------
 // Constants
@@ -19,9 +19,9 @@ constexpr std::array<double, 16> kCoefficients = {0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 
 
 // Called when writing the side-level data-rate scan.
 void draw_side_canvas(TDirectory* dir,
-                      const std::array<std::array<double, kCoefficients.size()>, 2>& rates_gbps) {
+                      const std::array<std::array<double, kCoefficients.size()>, 2>& rates_gbps,
+                      double y_max) {
   const double y_min = 0.0;
-  const double y_max = 12.0;
   dir->cd();
 
   TCanvas canvas("c_side_data_rate_vs_mip",
@@ -67,8 +67,10 @@ void draw_side_canvas(TDirectory* dir,
 
 // Called per event after the hit loop to accumulate side-level data-rate products.
 void accumulate_event(std::array<std::array<ThresholdSum, 16>, 2>& threshold_sums,
+                      const OccupancyMode& mode,
                       const std::array<mip::EventEnergyMap, 2>& side_channel_energies,
                       const rates::InsertToLFHCALMapper& mapper) {
+  (void)mode;
   for (int side = 0; side < 2; ++side) {
     std::unordered_map<rates::VirtualLFHCALChipID, int, rates::VirtualLFHCALChipIDHash> active_counts[16];
 
@@ -79,8 +81,7 @@ void accumulate_event(std::array<std::array<ThresholdSum, 16>, 2>& threshold_sum
       for (std::size_t threshold_index = 0; threshold_index < kCoefficients.size(); ++threshold_index) {
 
         // Skip if this virtual channel does not pass the threshold.
-        const int segment = rates::insert_occupancy::segment_index(channel.layer);
-        if (energy <= kCoefficients[threshold_index] * rates::insert_occupancy::channel_mip_energy_gev(segment)) continue;
+        if (energy <= kCoefficients[threshold_index] * rates::insert_analysis::lfhcal_segments::channel_mip_energy_gev(mode, channel.layer)) continue;
         ++active_counts[threshold_index][mapper.chip(channel)];
       }
     }
@@ -92,15 +93,17 @@ void accumulate_event(std::array<std::array<ThresholdSum, 16>, 2>& threshold_sum
         (void)chip;
         payload_bits += (kOverheadBits + kBitsPerHit * static_cast<double>(active_channel_count)) * kSamplesPerEvent;
       }
-      threshold_sums[side][threshold_index].total_payload_bits += payload_bits;
+      threshold_sums[side][threshold_index].total_payload_bits += payload_bits; // Add this event's side payload.
     }
   }
 }
 
 // Called once after the event loop to write side-level data-rate products.
-void write_output(TFile& output,
+void write_output(TDirectory* parent,
                   const std::array<std::array<ThresholdSum, 16>, 2>& threshold_sums,
+                  const OccupancyMode& mode,
                   std::uint64_t n_events) {
+  // Convert the summed side payloads into rates using the simulated event window.
   const double total_time_sec = static_cast<double>(n_events) * kEventWindowSec;
   std::array<std::array<double, kCoefficients.size()>, 2> rates_gbps{};
 
@@ -111,8 +114,9 @@ void write_output(TFile& output,
     }
   }
 
-  auto* parent = output.mkdir("side_data_rate_vs_mip");
-  draw_side_canvas(parent, rates_gbps);
+  auto* dir = parent->mkdir("side_data_rate_vs_mip");
+  const double y_max = mode.drop_inner_ring ? 11.0 : 12.0;
+  draw_side_canvas(dir, rates_gbps, y_max);
 }
 
-}  // namespace rates::insert_occupancy::side
+}  // namespace rates::insert_analysis::lfhcal_segments::side
