@@ -1,6 +1,6 @@
 /*
 
-./build/channel_energy -i data/mu-_10GeV_lfhcal_100k.edm4hep.root -o lfhcal_plots/muons/channel_energy.root
+./build/histogram_mip -i data/mu-_10GeV_lfhcal_100k.edm4hep.root -o lfhcal_plots/muons/histogram_mip.root
 
 */
 
