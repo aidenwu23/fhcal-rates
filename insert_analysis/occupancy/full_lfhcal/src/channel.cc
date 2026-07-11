@@ -78,11 +78,10 @@ void write_output(TDirectory* parent,
   auto* hit_dir = parent->mkdir("channel_hit_rate");
   auto* data_dir = parent->mkdir("channel_data_rate");
 
-  // Write every longitudinal segment and the inclusive segment sum.
-  for (int group = 0; group <= group_count(mode); ++group) {
-    write_hit_rate_directory(hit_dir, segment_sums[group], mode, group, n_events);
-    write_data_rate_directory(data_dir, segment_sums[group], mode, group, n_events);
-  }
+  // Write one channel distribution containing every longitudinal segment.
+  const int group = all_groups_index(mode);
+  write_hit_rate_directory(hit_dir, segment_sums[group], mode, group, n_events);
+  write_data_rate_directory(data_dir, segment_sums[group], mode, group, n_events);
 }
 
 }  // namespace rates::insert_analysis::full_lfhcal::channel

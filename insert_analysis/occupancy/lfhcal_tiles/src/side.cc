@@ -1,34 +1,37 @@
-#include "full_lfhcal/include/side.h"
+#include "lfhcal_tiles/include/side.h"
 
-#include "full_lfhcal/include/shared.h"
+#include "lfhcal_tiles/include/shared.h"
 
 #include <TCanvas.h>
 #include <TGraph.h>
 #include <TLegend.h>
 
+#include <algorithm>
 #include <array>
-#include <string>
-#include <unordered_map>
 
-namespace rates::insert_analysis::full_lfhcal::side {
+namespace rates::insert_analysis::lfhcal_tiles::side {
 namespace {
 
 constexpr std::array<double, 16> kCoefficients = {0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0, 1.1, 1.2, 1.3, 1.4, 1.5};
 
 void draw_side_canvas(TDirectory* dir,
-                      const std::array<std::array<double, kCoefficients.size()>, 2>& rates_gbps,
-                      double y_max) {
-  const double y_min = 0.0;
-  dir->cd();
+                      const std::array<std::array<double, kCoefficients.size()>, 2>& rates_gbps) {
+  double y_max = 0.0;
+  for (const auto& side_rates : rates_gbps) {
+    y_max = std::max(y_max, *std::max_element(side_rates.begin(), side_rates.end()));
+  }
+  if (y_max == 0.0) y_max = 1.0;
+  y_max *= 1.1;
 
+  dir->cd();
   TCanvas canvas("c_side_data_rate_vs_mip",
-                 "Insert side virtual-chip tail data rates vs MIP coefficient;MIP coefficient;data rate [Gb/s]",
+                 "Insert side channel data rates vs MIP coefficient;MIP coefficient;data rate [Gb/s]",
                  1000,
                  800);
   canvas.SetGrid();
 
-  auto* frame = canvas.DrawFrame(kCoefficients.front(), y_min, kCoefficients.back(), y_max);
-  frame->SetTitle("Insert side virtual-chip tail data rates vs MIP coefficient;MIP coefficient;data rate [Gb/s]");
+  auto* frame = canvas.DrawFrame(kCoefficients.front(), 0.0, kCoefficients.back(), y_max);
+  frame->SetTitle("Insert side channel data rates vs MIP coefficient;MIP coefficient;data rate [Gb/s]");
   frame->SetStats(false);
 
   TLegend legend(0.65, 0.76, 0.88, 0.88);
@@ -64,40 +67,25 @@ void draw_side_canvas(TDirectory* dir,
 
 void accumulate_event(std::array<std::array<ThresholdSum, 16>, 2>& threshold_sums,
                       const OccupancyMode& mode,
-                      const std::array<mip::EventEnergyMap, 2>& side_channel_energies,
-                      const rates::InsertToLFHCALMapper& mapper) {
+                      const std::array<mip::EventEnergyMap, 2>& side_channel_energies) {
 
   // Do both sides.
   for (int side = 0; side < 2; ++side) {
-    std::unordered_map<rates::VirtualLFHCALChipID, int, rates::VirtualLFHCALChipIDHash> active_counts[16];
 
     // Per side, loop through all channels.
     for (const auto& [channel, energy] : side_channel_energies[side]) {
 
       // Per channel, test every threshold.
       for (std::size_t threshold_index = 0; threshold_index < kCoefficients.size(); ++threshold_index) {
-        if (energy <= kCoefficients[threshold_index] * rates::insert_analysis::full_lfhcal::channel_mip_energy_gev(mode, channel.layer)) continue;
-        ++active_counts[threshold_index][mapper.chip(channel)];
+        if (energy <= kCoefficients[threshold_index] * channel_mip_energy_gev(mode, channel.layer)) continue;
+        threshold_sums[side][threshold_index].total_payload_bits += (kOverheadBits + kBitsPerHit) * kSamplesPerEvent;
       }
-    }
-
-    // Per side, loop over all thresholds.
-    for (std::size_t threshold_index = 0; threshold_index < kCoefficients.size(); ++threshold_index) {
-      double payload_bits = 0.0;
-
-      // Per threshold, sum the payload from every active chip.
-      for (const auto& [chip, active_channel_count] : active_counts[threshold_index]) {
-        (void)chip;
-        payload_bits += (kOverheadBits + kBitsPerHit * static_cast<double>(active_channel_count)) * kSamplesPerEvent;
-      }
-      threshold_sums[side][threshold_index].total_payload_bits += payload_bits; // Add this event's side payload.
     }
   }
 }
 
 void write_output(TDirectory* parent,
                   const std::array<std::array<ThresholdSum, 16>, 2>& threshold_sums,
-                  const OccupancyMode& mode,
                   std::uint64_t n_events) {
   const double total_time_sec = static_cast<double>(n_events) * kEventWindowSec;
   std::array<std::array<double, kCoefficients.size()>, 2> rates_gbps{};
@@ -114,8 +102,7 @@ void write_output(TDirectory* parent,
   }
 
   auto* dir = parent->mkdir("side_data_rate_vs_mip");
-  const double y_max = mode.drop_inner_ring ? 11.0 : 12.0;
-  draw_side_canvas(dir, rates_gbps, y_max);
+  draw_side_canvas(dir, rates_gbps);
 }
 
-}  // namespace rates::insert_analysis::full_lfhcal::side
+}  // namespace rates::insert_analysis::lfhcal_tiles::side

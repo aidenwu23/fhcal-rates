@@ -5,6 +5,7 @@
 #include "event_hit.h"
 #include "original_insert/include/mip.h"
 #include "original_insert/include/shared.h"
+#include "original_insert/include/side.h"
 
 #include <array>
 #include <vector>
@@ -17,6 +18,7 @@ struct Outputs {
   std::vector<SegmentSum> segment_sums;
   std::array<mip::ChannelThresholdSum, 16> channel_threshold_sums;
   std::array<mip::ChannelDataThresholdSum, 16> channel_data_threshold_sums;
+  std::array<std::array<side::ThresholdSum, 16>, 2> side_threshold_sums;
 };
 
 void init_outputs(Outputs& outputs);

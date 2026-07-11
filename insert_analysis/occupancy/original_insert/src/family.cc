@@ -17,6 +17,7 @@ void accumulate_event(Outputs& outputs,
   // Keep hit multiplicity and summed energy separately until thresholds are applied.
   std::unordered_map<OriginalChannelID, int, OriginalChannelIDHash> channel_hit_counts;
   mip::EventEnergyMap channel_energies;
+  std::array<mip::EventEnergyMap, 2> side_channel_energies;
 
   // Keep each original insert cell as its own channel in its physical layer.
   for (const auto& hit : event_hits) {
@@ -33,6 +34,7 @@ void accumulate_event(Outputs& outputs,
 
     ++channel_hit_counts[channel]; // Keep multiplicity for occupancy products.
     channel_energies[channel] += hit.energy_gev; // Sum before applying the MIP threshold.
+    side_channel_energies[hit.side][channel] += hit.energy_gev;
   }
 
   // Build the fixed 0.5-MIP channel view used by occupancy products.
@@ -51,6 +53,7 @@ void accumulate_event(Outputs& outputs,
       outputs.channel_data_threshold_sums,
       outputs.mode,
       channel_energies);
+  side::accumulate_event(outputs.side_threshold_sums, outputs.mode, side_channel_energies);
   fill_event_histograms(outputs.segment_sums, outputs.mode, thresholded_channel_hit_counts);
 }
 
@@ -68,6 +71,7 @@ void write_output(TFile& output,
       outputs.channel_threshold_sums,
       outputs.channel_data_threshold_sums,
       n_events);
+  side::write_output(variant_dir, outputs.side_threshold_sums, n_events);
 }
 
 }  // namespace rates::insert_analysis::original_insert

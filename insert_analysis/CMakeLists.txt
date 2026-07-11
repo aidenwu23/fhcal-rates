@@ -20,6 +20,7 @@ target_sources(insert_occupancy PRIVATE
   ${CMAKE_CURRENT_SOURCE_DIR}/occupancy/original_insert/src/xy.cc
   ${CMAKE_CURRENT_SOURCE_DIR}/occupancy/original_insert/src/channel.cc
   ${CMAKE_CURRENT_SOURCE_DIR}/occupancy/original_insert/src/mip.cc
+  ${CMAKE_CURRENT_SOURCE_DIR}/occupancy/original_insert/src/side.cc
   ${CMAKE_CURRENT_SOURCE_DIR}/occupancy/lfhcal_tiles/src/family.cc
   ${CMAKE_CURRENT_SOURCE_DIR}/occupancy/lfhcal_tiles/src/with_inner_ring.cc
   ${CMAKE_CURRENT_SOURCE_DIR}/occupancy/lfhcal_tiles/src/no_inner_ring.cc
@@ -27,6 +28,7 @@ target_sources(insert_occupancy PRIVATE
   ${CMAKE_CURRENT_SOURCE_DIR}/occupancy/lfhcal_tiles/src/xy.cc
   ${CMAKE_CURRENT_SOURCE_DIR}/occupancy/lfhcal_tiles/src/channel.cc
   ${CMAKE_CURRENT_SOURCE_DIR}/occupancy/lfhcal_tiles/src/mip.cc
+  ${CMAKE_CURRENT_SOURCE_DIR}/occupancy/lfhcal_tiles/src/side.cc
   ${CMAKE_CURRENT_SOURCE_DIR}/occupancy/full_lfhcal/src/family.cc
   ${CMAKE_CURRENT_SOURCE_DIR}/occupancy/full_lfhcal/src/with_inner_ring.cc
   ${CMAKE_CURRENT_SOURCE_DIR}/occupancy/full_lfhcal/src/no_inner_ring.cc

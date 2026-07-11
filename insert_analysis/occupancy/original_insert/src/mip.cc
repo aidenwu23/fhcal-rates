@@ -148,7 +148,7 @@ void write_output(TDirectory* parent,
                "g_channel_hit_rate_vs_mip",
                "rate [Hz]",
                0.0,
-               7.0e4,
+               5.0e4,
                channel_hit_rate_percentile_values);
 
   auto* channel_data_dir = parent->mkdir("channel_data_rate_vs_mip");
@@ -158,7 +158,7 @@ void write_output(TDirectory* parent,
                "g_channel_data_rate_vs_mip",
                "data rate [Gb/s]",
                0.0,
-               4.5e-2,
+               3.0e-2,
                channel_data_rate_percentile_values);
 }
 

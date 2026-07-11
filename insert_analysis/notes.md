@@ -40,7 +40,8 @@ The generic family code receives that mode for every event.
 
 `shared.cc::keep_channel` applies the removal.  The channel center is
 measured from the global empty-hole center at `(-172 mm, 0 mm)`, combining the
-insert placement and the hole offset inside the insert.  The removed disk has the
+insert x position of `-100 mm` with the local hole x position of `-72 mm`.  The
+removed disk has the
 physical 146.1 mm beampipe-hole radius.  Since the filter runs before any occupancy,
 chip, MIP, radius, or side product receives a channel, every statistic in a
 `no_inner_ring` directory uses the same mask.
@@ -51,8 +52,8 @@ Files under `occupancy/original_insert/` use the simulated insert cell ID as the
 channel ID and preserve all 60 physical layers.  Hits from one original detector
 cell are summed together without transverse remapping.
 
-This family writes the same per-channel and MIP-scan products as `lfhcal_tiles/`,
-so their rate distributions can be compared directly.
+This family writes the same all-layer channel distributions, MIP scans, and side
+data-rate scans as `lfhcal_tiles/`, so their rates can be compared directly.
 
 ## LFHCAL-tile family
 
@@ -64,8 +65,9 @@ maps to the zero-based channel layer index `physical_layer - 1`.
 | `include/family.h`, `src/family.cc` | Own `Outputs`, initialize its accumulators, process one event, and write one layout variant. |
 | `include/shared.h`, `src/shared.cc` | Define common constants, channel statistics, output mode, layer names, inner-ring filtering, percentile indexing, and ROOT drawing helpers. |
 | `include/xy.h`, `src/xy.cc` | Accumulate thresholded channel counts by layer and in the inclusive summed-layer entry. |
-| `include/channel.h`, `src/channel.cc` | Write per-channel hit-rate and data-rate histograms for every layer and the layer sum. |
+| `include/channel.h`, `src/channel.cc` | Write one all-layer channel hit-rate histogram and one all-layer channel data-rate histogram. |
 | `include/mip.h`, `src/mip.cc` | Scan 0.0 through 1.5 MIP thresholds and write channel hit-rate and data-rate percentile curves. |
+| `include/side.h`, `src/side.cc` | Sum thresholded channel payload separately for the two insert sides. |
 | `include/with_inner_ring.h`, `src/with_inner_ring.cc` | Configure the `lfhcal_tiles/with_inner_ring` output variant. |
 | `include/no_inner_ring.h`, `src/no_inner_ring.cc` | Configure the `lfhcal_tiles/no_inner_ring` output variant. |
 
@@ -86,7 +88,7 @@ together.
 | `include/family.h`, `src/family.cc` | Own all segment-level products and route one event into every product family. |
 | `include/shared.h`, `src/shared.cc` | Define segment boundaries, map physical layers to segments, and provide shared filtering and ROOT helpers. |
 | `include/xy.h`, `src/xy.cc` | Accumulate thresholded channel occupancy for each segment and the segment sum. |
-| `include/channel.h`, `src/channel.cc` | Write virtual-channel hit-rate and data-rate histograms by segment. |
+| `include/channel.h`, `src/channel.cc` | Write one all-segment channel hit-rate histogram and one all-segment channel data-rate histogram. |
 | `include/chip.h`, `src/chip.cc` | Combine thresholded virtual channels into virtual chips and write chip hit-rate and data-rate histograms. |
 | `include/mip.h`, `src/mip.cc` | Produce MIP scans for both virtual channels and virtual chips. |
 | `include/radius.h`, `src/radius.cc` | Bin thresholded virtual-chip data rates by radius and write p95 and p99 radius scans. |
@@ -123,5 +125,5 @@ full_lfhcal/
   no_inner_ring/
 ```
 
-Original-insert and LFHCAL-tile variants contain channel occupancy and channel MIP
-products.  Full-LFHCAL variants add virtual-chip, radius, and side products.
+Every variant contains all-layer channel distributions, channel MIP products, and
+side data-rate scans.  Full-LFHCAL variants add virtual-chip and radius products.

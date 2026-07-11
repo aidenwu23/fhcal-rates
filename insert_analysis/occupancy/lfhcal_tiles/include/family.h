@@ -6,6 +6,7 @@
 #include "insert_to_lfhcal.h"
 #include "lfhcal_tiles/include/mip.h"
 #include "lfhcal_tiles/include/shared.h"
+#include "lfhcal_tiles/include/side.h"
 
 #include <array>
 #include <vector>
@@ -18,6 +19,7 @@ struct Outputs {
   std::vector<SegmentSum> segment_sums;
   std::array<mip::ChannelThresholdSum, 16> channel_threshold_sums;
   std::array<mip::ChannelDataThresholdSum, 16> channel_data_threshold_sums;
+  std::array<std::array<side::ThresholdSum, 16>, 2> side_threshold_sums;
 };
 
 void init_outputs(Outputs& outputs);
