@@ -19,12 +19,14 @@ void accumulate_event(std::vector<SegmentSum>& segment_sums,
     stats.x_mm = (static_cast<double>(channel.ix) + 0.5) * kVirtualCellSizeMM;
     stats.y_mm = (static_cast<double>(channel.iy) + 0.5) * kVirtualCellSizeMM;
     stats.total_hits += count; // Add this event's accepted hit multiplicity.
+    ++stats.passing_events;
 
     // Fill the inclusive segment sum with the same channel contribution.
     auto& all_segment_stats = segment_sums[all_groups_index(mode)].channels[channel];
     all_segment_stats.x_mm = stats.x_mm;
     all_segment_stats.y_mm = stats.y_mm;
     all_segment_stats.total_hits += count;
+    ++all_segment_stats.passing_events;
   }
 }
 

@@ -40,6 +40,7 @@ struct ChannelStats {
   double x_mm = 0.0;
   double y_mm = 0.0;
   std::uint64_t total_hits = 0;
+  std::uint64_t passing_events = 0;
 };
 
 struct SegmentSum {
