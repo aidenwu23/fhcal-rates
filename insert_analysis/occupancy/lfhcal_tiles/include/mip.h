@@ -36,6 +36,7 @@ void accumulate_event(std::array<ChannelThresholdSum, 16>& channel_threshold_sum
 void write_output(TDirectory* parent,
                   const std::array<ChannelThresholdSum, 16>& channel_threshold_sums,
                   const std::array<ChannelDataThresholdSum, 16>& channel_data_threshold_sums,
+                  const OccupancyMode& mode,
                   std::uint64_t n_events);
 
 }  // namespace rates::insert_analysis::lfhcal_tiles::mip

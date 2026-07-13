@@ -56,11 +56,11 @@ void write_data_rate_directory(TDirectory* parent,
       0.0,
       0.01);
 
-  // Charge one complete channel payload for each event that passes the threshold.
+  // Count the channel payload while leaving shared framing overhead unassigned.
   for (const auto& [channel, stats] : segment_sum.channels) {
     (void)channel;
     const double data_rate =
-        (static_cast<double>(stats.passing_events) * (kOverheadBits + kBitsPerHit) * kSamplesPerEvent) /
+        (static_cast<double>(stats.passing_events) * kBitsPerHit * kSamplesPerEvent) /
         (static_cast<double>(n_events) * kEventWindowSec * 1.0e9);
     h_data_rate->Fill(data_rate);
   }

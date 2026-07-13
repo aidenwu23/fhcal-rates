@@ -53,13 +53,15 @@ void draw_overlay(TDirectory* dir,
   dir->cd();
 
   TCanvas canvas(("c_" + threshold_tag(threshold_mip) + "_data_rate_vs_radius").c_str(),
-                 ("Virtual chip tail data rates vs radius, threshold " + std::to_string(threshold_mip) + " MIP;radius [mm];data rate [Gb/s]").c_str(),
+                 ("Insert chip tail data rates vs radius, threshold " + std::to_string(threshold_mip) +
+                  " MIP (full LFHCal readout);radius [mm];data rate [Gb/s]").c_str(),
                  1000,
                  800);
   canvas.SetGrid();
 
   auto* frame = canvas.DrawFrame(0.0, 0.0, kRadiusMaxMm, 0.4);
-  frame->SetTitle(("Virtual chip tail data rates vs radius, threshold " + std::to_string(threshold_mip) + " MIP;radius [mm];data rate [Gb/s]").c_str());
+  frame->SetTitle(("Insert chip tail data rates vs radius, threshold " + std::to_string(threshold_mip) +
+                   " MIP (full LFHCal readout);radius [mm];data rate [Gb/s]").c_str());
   frame->SetStats(false);
 
   TLegend legend(0.65, 0.76, 0.88, 0.88);
@@ -145,8 +147,9 @@ void write_output(TDirectory* parent,
       // Compute the chip radius and append its data rate into the corresponding radius bin.
       const double x_mm = (static_cast<double>(chip.ix) + 0.5) * 100.0;
       const double y_mm = (static_cast<double>(chip.iy) + 0.5) * 100.0;
+      const double dx_mm = x_mm - kInnerRingCenterXMM;
       const double rate_gbps = (payload_bits / total_time_sec) / 1.0e9;
-      bins[radius_bin(std::hypot(x_mm, y_mm))].rates_gbps.push_back(rate_gbps);
+      bins[radius_bin(std::hypot(dx_mm, y_mm))].rates_gbps.push_back(rate_gbps);
     }
 
     std::array<std::array<double, kRadiusBins>, 2> percentile_values{};

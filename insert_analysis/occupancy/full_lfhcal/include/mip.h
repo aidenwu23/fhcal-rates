@@ -52,6 +52,7 @@ void write_output(TDirectory* parent,
                   const std::array<ChannelDataThresholdSum, 16>& channel_data_threshold_sums,
                   const std::array<ChipThresholdSum, 16>& chip_threshold_sums,
                   const std::array<ChipDataThresholdSum, 16>& chip_data_threshold_sums,
+                  const OccupancyMode& mode,
                   std::uint64_t n_events);
 
 }  // namespace rates::insert_analysis::full_lfhcal::mip

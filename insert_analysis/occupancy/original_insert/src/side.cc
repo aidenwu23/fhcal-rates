@@ -25,13 +25,15 @@ void draw_side_canvas(TDirectory* dir,
 
   dir->cd();
   TCanvas canvas("c_side_data_rate_vs_mip",
-                 "Insert side channel data rates vs MIP coefficient;MIP coefficient;data rate [Gb/s]",
+                 "Insert total data rate by side vs MIP coefficient;MIP coefficient;data rate [Gb/s]",
                  1000,
                  800);
   canvas.SetGrid();
 
   auto* frame = canvas.DrawFrame(kCoefficients.front(), 0.0, kCoefficients.back(), y_max);
-  frame->SetTitle("Insert side channel data rates vs MIP coefficient;MIP coefficient;data rate [Gb/s]");
+  frame->SetTitle("Insert total data rate by side vs MIP coefficient;MIP coefficient;data rate [Gb/s]");
+  frame->GetXaxis()->SetTitle("MIP coefficient");
+  frame->GetYaxis()->SetTitle("data rate [Gb/s]");
   frame->SetStats(false);
 
   TLegend legend(0.65, 0.76, 0.88, 0.88);
@@ -78,7 +80,7 @@ void accumulate_event(std::array<std::array<ThresholdSum, 16>, 2>& threshold_sum
       // Per channel, test every threshold.
       for (std::size_t threshold_index = 0; threshold_index < kCoefficients.size(); ++threshold_index) {
         if (energy <= kCoefficients[threshold_index] * channel_mip_energy_gev(mode, channel.layer)) continue;
-        threshold_sums[side][threshold_index].total_payload_bits += (kOverheadBits + kBitsPerHit) * kSamplesPerEvent;
+        threshold_sums[side][threshold_index].total_payload_bits += kBitsPerHit * kSamplesPerEvent;
       }
     }
   }

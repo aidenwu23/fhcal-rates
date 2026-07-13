@@ -70,6 +70,7 @@ void write_output(TFile& output,
       variant_dir,
       outputs.channel_threshold_sums,
       outputs.channel_data_threshold_sums,
+      outputs.mode,
       n_events);
   side::write_output(variant_dir, outputs.side_threshold_sums, n_events);
 }

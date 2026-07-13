@@ -31,9 +31,9 @@ std::string group_dir_name(const OccupancyMode& mode, int group) {
 
 std::string group_title(const OccupancyMode& mode, int group) {
   if (group == all_groups_index(mode)) {
-    return "Summed layers";
+    return "Insert all layers (LFHCal tiles)";
   }
-  return "Layer " + std::to_string(group + 1);
+  return "Insert layer " + std::to_string(group + 1) + " (LFHCal tiles)";
 }
 
 double channel_mip_energy_gev(const OccupancyMode& mode, int mapped_layer_value) {

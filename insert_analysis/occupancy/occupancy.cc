@@ -6,6 +6,7 @@
 
 #include <TFile.h>
 #include <TH1.h>
+#include <TStyle.h>
 
 #include <podio/Frame.h>
 #include <podio/ROOTReader.h>
@@ -93,6 +94,8 @@ std::string find_insert_collection(const podio::Frame& frame) {
 // ----------------------------------------------------------------------------------
 int main(int argc, char* argv[]) {
   TH1::AddDirectory(false);
+  gStyle->SetTitleFontSize(0.04);
+  gStyle->SetTitleW(0.8);
 
   // Expand either one ROOT file or an input directory into the files to process.
   const auto args = parse_args(argc, argv);

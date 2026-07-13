@@ -76,6 +76,7 @@ void write_output(TFile& output,
       outputs.channel_data_threshold_sums,
       outputs.chip_threshold_sums,
       outputs.chip_data_threshold_sums,
+      outputs.mode,
       n_events);
   radius::write_output(variant_dir, outputs.radius_threshold_sums, n_events);
   side::write_output(variant_dir, outputs.side_threshold_sums, outputs.mode, n_events);

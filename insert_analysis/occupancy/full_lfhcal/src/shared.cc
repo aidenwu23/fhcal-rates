@@ -42,9 +42,10 @@ std::string group_dir_name(const OccupancyMode& mode, int group) {
 
 std::string group_title(const OccupancyMode& mode, int group) {
   if (group == all_groups_index(mode)) {
-    return "Summed segments";
+    return "Insert all segments (full LFHCal readout)";
   }
-  return "Layers " + std::to_string(kSegmentFirstLayers[group]) + "-" + std::to_string(kSegmentLastLayers[group]);
+  return "Insert layers " + std::to_string(kSegmentFirstLayers[group]) + "-" + std::to_string(kSegmentLastLayers[group]) +
+         " (full LFHCal readout)";
 }
 
 double channel_mip_energy_gev(const OccupancyMode& mode, int mapped_layer_value) {

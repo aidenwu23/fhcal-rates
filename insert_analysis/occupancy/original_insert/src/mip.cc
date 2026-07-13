@@ -93,7 +93,7 @@ void accumulate_event(std::array<ChannelThresholdSum, 16>& channel_threshold_sum
       // If pass, count one passing event for this channel and accumulate bits.
       ++channel_threshold_sums[threshold_index].pass_counts[channel];
       channel_data_threshold_sums[threshold_index].payload_bits[channel] +=
-          (kOverheadBits + kBitsPerHit) * kSamplesPerEvent;
+          kBitsPerHit * kSamplesPerEvent;
     }
   }
 }
@@ -102,6 +102,7 @@ void accumulate_event(std::array<ChannelThresholdSum, 16>& channel_threshold_sum
 void write_output(TDirectory* parent,
                   const std::array<ChannelThresholdSum, 16>& channel_threshold_sums,
                   const std::array<ChannelDataThresholdSum, 16>& channel_data_threshold_sums,
+                  const OccupancyMode& mode,
                   std::uint64_t n_events) {
   // Convert full-sample counts into rates using the simulated event window.
   const double total_time_sec = static_cast<double>(n_events) * kEventWindowSec;
@@ -144,7 +145,7 @@ void write_output(TDirectory* parent,
   auto* channel_hit_dir = parent->mkdir("channel_hit_rate_vs_mip");
   draw_overlay(channel_hit_dir,
                "c_channel_hit_rate_vs_mip",
-               "Original cell tail hit rates vs MIP coefficient;MIP coefficient;rate [Hz]",
+               "Insert channel tail hit rates vs MIP coefficient;MIP coefficient;rate [Hz]",
                "g_channel_hit_rate_vs_mip",
                "rate [Hz]",
                0.0,
@@ -154,11 +155,11 @@ void write_output(TDirectory* parent,
   auto* channel_data_dir = parent->mkdir("channel_data_rate_vs_mip");
   draw_overlay(channel_data_dir,
                "c_channel_data_rate_vs_mip",
-               "Original cell tail data rates vs MIP coefficient;MIP coefficient;data rate [Gb/s]",
+               "Insert channel tail data rates vs MIP coefficient;MIP coefficient;data rate [Gb/s]",
                "g_channel_data_rate_vs_mip",
                "data rate [Gb/s]",
                0.0,
-               3.0e-2,
+               mode.drop_inner_ring ? 5.5e-3 : 6.0e-3,
                channel_data_rate_percentile_values);
 }
 

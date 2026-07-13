@@ -22,13 +22,15 @@ void draw_side_canvas(TDirectory* dir,
   dir->cd();
 
   TCanvas canvas("c_side_data_rate_vs_mip",
-                 "Insert side virtual-chip tail data rates vs MIP coefficient;MIP coefficient;data rate [Gb/s]",
+                 "Insert total data rate by side vs MIP coefficient (full LFHCal readout);MIP coefficient;data rate [Gb/s]",
                  1000,
                  800);
   canvas.SetGrid();
 
   auto* frame = canvas.DrawFrame(kCoefficients.front(), y_min, kCoefficients.back(), y_max);
-  frame->SetTitle("Insert side virtual-chip tail data rates vs MIP coefficient;MIP coefficient;data rate [Gb/s]");
+  frame->SetTitle("Insert total data rate by side vs MIP coefficient (full LFHCal readout);MIP coefficient;data rate [Gb/s]");
+  frame->GetXaxis()->SetTitle("MIP coefficient");
+  frame->GetYaxis()->SetTitle("data rate [Gb/s]");
   frame->SetStats(false);
 
   TLegend legend(0.65, 0.76, 0.88, 0.88);

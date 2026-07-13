@@ -12,6 +12,11 @@ int virtual_index(double coordinate_mm) {
   return static_cast<int>(std::floor(coordinate_mm / kVirtualCellSizeMm));
 }
 
+// Group pairs of channel indices while preserving the pair boundary across zero.
+int chip_index(int channel_index) {
+  return channel_index >= 0 ? channel_index / 2 : (channel_index - 1) / 2;
+}
+
 }  // namespace
 
 std::size_t VirtualLFHCALChannelIDHash::operator()(const VirtualLFHCALChannelID& channel) const {
@@ -55,12 +60,10 @@ VirtualLFHCALChannelID InsertToLFHCALMapper::channel(const HcalEndcapPInsertCell
 VirtualLFHCALChipID InsertToLFHCALMapper::chip(const VirtualLFHCALChannelID& channel) const {
   return VirtualLFHCALChipID{
       1,
-      // Integer division is used here, so 0 / 2 = 0 and 1 / 2 = 0 after truncation.
-      // That makes neighboring channel columns share one chip column:
-      // channel ix = 0,1 -> chip ix = 0; 2,3 -> 1; 4,5 -> 2; ...
-      channel.ix / 2,
+      // Neighboring channel columns share one chip column on both sides of zero.
+      chip_index(channel.ix),
       // Do the same integer-division grouping in y so one chip covers a 2 by 2 block of channels.
-      channel.iy / 2,
+      chip_index(channel.iy),
   };
 }
 

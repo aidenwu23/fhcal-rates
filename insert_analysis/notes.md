@@ -39,10 +39,10 @@ is to initialize the output directory name and `OccupancyMode::drop_inner_ring`.
 The generic family code receives that mode for every event.
 
 `shared.cc::keep_channel` applies the removal.  The channel center is
-measured from the global empty-hole center at `(-172 mm, 0 mm)`, combining the
-insert x position of `-100 mm` with the local hole x position of `-72 mm`.  The
-removed disk has the
-physical 146.1 mm beampipe-hole radius.  Since the filter runs before any occupancy,
+measured in local insert coordinates from the empty-hole center at
+`(-72 mm, 0 mm)`.  The center veto uses an effective 171 mm radius for original
+cells and 163 mm for 50 mm LFHCal tiles so boundary tiles overlapping the physical
+146.1 mm hole are removed.  Since the filter runs before any occupancy,
 chip, MIP, radius, or side product receives a channel, every statistic in a
 `no_inner_ring` directory uses the same mask.
 
