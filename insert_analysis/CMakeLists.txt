@@ -27,6 +27,7 @@ target_sources(insert_occupancy PRIVATE
   ${CMAKE_CURRENT_SOURCE_DIR}/occupancy/lfhcal_tiles/src/shared.cc
   ${CMAKE_CURRENT_SOURCE_DIR}/occupancy/lfhcal_tiles/src/xy.cc
   ${CMAKE_CURRENT_SOURCE_DIR}/occupancy/lfhcal_tiles/src/channel.cc
+  ${CMAKE_CURRENT_SOURCE_DIR}/occupancy/lfhcal_tiles/src/chip.cc
   ${CMAKE_CURRENT_SOURCE_DIR}/occupancy/lfhcal_tiles/src/mip.cc
   ${CMAKE_CURRENT_SOURCE_DIR}/occupancy/lfhcal_tiles/src/side.cc
   ${CMAKE_CURRENT_SOURCE_DIR}/occupancy/full_lfhcal/src/family.cc

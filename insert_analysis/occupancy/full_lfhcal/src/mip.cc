@@ -241,7 +241,7 @@ void write_output(TDirectory* parent,
                "g_chip_data_rate_vs_mip",
                "data rate [Gb/s]",
                0.0,
-               0.9,
+               0.75,
                chip_data_rate_percentile_values);
 }
 

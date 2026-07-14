@@ -40,11 +40,28 @@ struct VirtualLFHCALChipIDHash {
   std::size_t operator()(const VirtualLFHCALChipID& chip) const;
 };
 
+struct VirtualLFHCALPizzaChipID {
+  int layer = 0;
+  int side = 0;
+  int region = 0;
+
+  bool operator==(const VirtualLFHCALPizzaChipID& other) const {
+    return layer == other.layer &&
+           side == other.side &&
+           region == other.region;
+  }
+};
+
+struct VirtualLFHCALPizzaChipIDHash {
+  std::size_t operator()(const VirtualLFHCALPizzaChipID& chip) const;
+};
+
 class InsertToLFHCALMapper {
  public:
   VirtualLFHCALChannelID channel(int layer, double x_mm, double y_mm) const;
   VirtualLFHCALChannelID channel(const HcalEndcapPInsertCellID& cell, double x_mm, double y_mm) const;
   VirtualLFHCALChipID chip(const VirtualLFHCALChannelID& channel) const;
+  VirtualLFHCALPizzaChipID pizza_chip(const VirtualLFHCALChannelID& channel, int side) const;
 };
 
 }  // namespace rates

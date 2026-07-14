@@ -1,5 +1,6 @@
 #pragma once
 
+#include "insert_to_lfhcal.h"
 #include "lfhcal_tiles/include/mip.h"
 
 #include <TDirectory.h>
@@ -14,7 +15,8 @@ struct ThresholdSum {
 
 void accumulate_event(std::array<std::array<ThresholdSum, 16>, 2>& threshold_sums,
                       const OccupancyMode& mode,
-                      const std::array<mip::EventEnergyMap, 2>& side_channel_energies);
+                      const std::array<mip::EventEnergyMap, 2>& side_channel_energies,
+                      const rates::InsertToLFHCALMapper& mapper);
 
 void write_output(TDirectory* parent,
                   const std::array<std::array<ThresholdSum, 16>, 2>& threshold_sums,

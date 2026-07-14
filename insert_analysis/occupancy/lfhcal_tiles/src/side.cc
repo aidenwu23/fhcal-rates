@@ -8,6 +8,7 @@
 
 #include <algorithm>
 #include <array>
+#include <unordered_map>
 
 namespace rates::insert_analysis::lfhcal_tiles::side {
 namespace {
@@ -69,10 +70,15 @@ void draw_side_canvas(TDirectory* dir,
 
 void accumulate_event(std::array<std::array<ThresholdSum, 16>, 2>& threshold_sums,
                       const OccupancyMode& mode,
-                      const std::array<mip::EventEnergyMap, 2>& side_channel_energies) {
+                      const std::array<mip::EventEnergyMap, 2>& side_channel_energies,
+                      const rates::InsertToLFHCALMapper& mapper) {
 
   // Do both sides.
   for (int side = 0; side < 2; ++side) {
+    std::unordered_map<rates::VirtualLFHCALPizzaChipID,
+                       int,
+                       rates::VirtualLFHCALPizzaChipIDHash>
+        active_counts[16];
 
     // Per side, loop through all channels.
     for (const auto& [channel, energy] : side_channel_energies[side]) {
@@ -80,8 +86,21 @@ void accumulate_event(std::array<std::array<ThresholdSum, 16>, 2>& threshold_sum
       // Per channel, test every threshold.
       for (std::size_t threshold_index = 0; threshold_index < kCoefficients.size(); ++threshold_index) {
         if (energy <= kCoefficients[threshold_index] * channel_mip_energy_gev(mode, channel.layer)) continue;
-        threshold_sums[side][threshold_index].total_payload_bits += kBitsPerHit * kSamplesPerEvent;
+        ++active_counts[threshold_index][mapper.pizza_chip(channel, side)];
       }
+    }
+
+    // Per side, loop over all thresholds.
+    for (std::size_t threshold_index = 0; threshold_index < kCoefficients.size(); ++threshold_index) {
+      double payload_bits = 0.0;
+
+      // Per threshold, sum the payload from every active chip.
+      for (const auto& [chip, active_channel_count] : active_counts[threshold_index]) {
+        (void)chip;
+        payload_bits +=
+            (kOverheadBits + kBitsPerHit * static_cast<double>(active_channel_count)) * kSamplesPerEvent;
+      }
+      threshold_sums[side][threshold_index].total_payload_bits += payload_bits;
     }
   }
 }
