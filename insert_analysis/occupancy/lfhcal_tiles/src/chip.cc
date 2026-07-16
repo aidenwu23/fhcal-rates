@@ -1,11 +1,13 @@
 #include "lfhcal_tiles/include/chip.h"
 
+#include "contour.h"
 #include "lfhcal_tiles/include/shared.h"
 
 #include <TH1D.h>
 
 #include <string>
 #include <unordered_map>
+#include <vector>
 
 namespace rates::insert_analysis::lfhcal_tiles::chip {
 namespace {
@@ -107,6 +109,7 @@ void accumulate_event(ChipSum& chip_sum,
 
     auto& stats = chip_sum.chips[chip];
     ++stats.total_hits;
+    stats.total_active_channels += static_cast<std::uint64_t>(active_channel_count);
     stats.total_payload_bits += payload_bits;
   }
 
@@ -121,6 +124,32 @@ void write_output(TDirectory* parent,
   auto* data_dir = parent->mkdir("chip_data_rate");
   write_chip_hit_rate_directory(hit_dir, mode, chip_sum, n_events);
   write_chip_data_rate_directory(data_dir, mode, chip_sum, n_events);
+
+
+  // Also do the fancy countour.
+  const double total_time_sec = static_cast<double>(n_events) * kEventWindowSec;
+  std::vector<double> chip_rates_hz;
+  std::vector<double> mean_fired_channels;
+  chip_rates_hz.reserve(chip_sum.chips.size());
+  mean_fired_channels.reserve(chip_sum.chips.size());
+
+  for (const auto& [chip, stats] : chip_sum.chips) {
+    (void)chip;
+    chip_rates_hz.push_back(static_cast<double>(stats.total_hits) / total_time_sec);
+    mean_fired_channels.push_back(
+        static_cast<double>(stats.total_active_channels) / static_cast<double>(stats.total_hits));
+  }
+
+  auto* contour_dir = parent->mkdir("chip_fired_channels_vs_rate");
+  rates::insert_analysis::contour::write_output(
+      contour_dir,
+      chip_rates_hz,
+      mean_fired_channels,
+      225.0e3,
+      0.8,
+      2.3,
+      {0.02, 0.04, 0.06, 0.08, 0.10, 0.12, 0.14, 0.16},
+      "LFHCal tiles");
 }
 
 }  // namespace rates::insert_analysis::lfhcal_tiles::chip

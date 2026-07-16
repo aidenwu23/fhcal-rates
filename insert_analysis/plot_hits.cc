@@ -1,6 +1,6 @@
 /*
 
-./build/plot_hits -i data/bkg_apr -o insert_plots/plot_hits.root
+./build/plot_hits -i data/test -o insert_plots/plot_hits.root
 
 */
 
@@ -22,6 +22,7 @@
 
 #include <algorithm>
 #include <array>
+#include <cmath>
 #include <cstdint>
 #include <filesystem>
 #include <iostream>
@@ -45,6 +46,10 @@ constexpr int kFirstLayer = 1;
 // Show a fixed 500 mm radius window around the origin.
 constexpr double kWindowRadiusMm = 500.0;
 constexpr double kVirtualCellSizeMm = 50.0;
+constexpr double kPizzaCenterXMM = 0.5 * (-3.95 - 21.5);
+constexpr double kPi = 3.14159265358979323846;
+constexpr double kLeftBoundaryAngle = 0.6580536749365931;
+constexpr double kRightBoundaryAngle = 0.757476810561768;
 
 const std::array<int, kMaxLayersToPlot> kLayerColors = {kBlue + 1, kRed + 1, kGreen + 2, kMagenta + 1};
 constexpr int kLeftMarkerStyle = 20;
@@ -224,15 +229,53 @@ int main(int argc, char* argv[]) {
   for (double coordinate = -kWindowRadiusMm; coordinate <= kWindowRadiusMm; coordinate += kVirtualCellSizeMm) {
     segmentation_lines.emplace_back(coordinate, -kWindowRadiusMm, coordinate, kWindowRadiusMm);
     auto& vertical_line = segmentation_lines.back();
-    vertical_line.SetLineColor(kGray + 1);
+    vertical_line.SetLineColor(kGray + 2);
     vertical_line.SetLineStyle(3);
+    vertical_line.SetLineWidth(2);
     vertical_line.Draw();
 
     segmentation_lines.emplace_back(-kWindowRadiusMm, coordinate, kWindowRadiusMm, coordinate);
     auto& horizontal_line = segmentation_lines.back();
-    horizontal_line.SetLineColor(kGray + 1);
+    horizontal_line.SetLineColor(kGray + 2);
     horizontal_line.SetLineStyle(3);
+    horizontal_line.SetLineWidth(2);
     horizontal_line.Draw();
+  }
+
+  const std::array<double, 5> chip_boundary_angles = {
+      -kRightBoundaryAngle,
+      kRightBoundaryAngle,
+      kPi - kLeftBoundaryAngle,
+      kPi,
+      kPi + kLeftBoundaryAngle,
+  };
+
+  std::vector<TLine> chip_lines;
+  chip_lines.reserve(chip_boundary_angles.size() + 1);
+  chip_lines.emplace_back(kPizzaCenterXMM, -kWindowRadiusMm, kPizzaCenterXMM, kWindowRadiusMm);
+  auto& side_line = chip_lines.back();
+  side_line.SetLineColor(kRed + 1);
+  side_line.SetLineStyle(3);
+  side_line.SetLineWidth(2);
+
+  for (const double angle : chip_boundary_angles) {
+    const double dx = std::cos(angle);
+    const double dy = std::sin(angle);
+    double ray_length = (dx > 0.0 ? kWindowRadiusMm - kPizzaCenterXMM
+                                  : -kWindowRadiusMm - kPizzaCenterXMM) / dx;
+    if (dy != 0.0) {
+      const double y_ray_length = (dy > 0.0 ? kWindowRadiusMm : -kWindowRadiusMm) / dy;
+      ray_length = std::min(ray_length, y_ray_length);
+    }
+    chip_lines.emplace_back(
+        kPizzaCenterXMM,
+        0.0,
+        kPizzaCenterXMM + ray_length * dx,
+        ray_length * dy);
+    auto& line = chip_lines.back();
+    line.SetLineColor(kRed + 1);
+    line.SetLineStyle(3);
+    line.SetLineWidth(2);
   }
 
   // Keep graphs alive until the canvas is written.
@@ -287,7 +330,7 @@ int main(int argc, char* argv[]) {
     }
   }
 
-  // Write the frame, marker graphs, and final canvas into the output file.
+  // Write the frame, marker graphs, and canvases into the output file.
   layer_legend.Draw();
   side_legend.Draw();
 
@@ -296,6 +339,15 @@ int main(int argc, char* argv[]) {
     graph.Write();
   }
   canvas.Write();
+
+  TCanvas pizza_canvas("c_insert_hits_xy_pizza", "Insert hits with pizza-chip regions", 1000, 900);
+  frame_hist.Draw();
+  for (auto& line : segmentation_lines) line.Draw();
+  for (auto& line : chip_lines) line.Draw();
+  for (auto& graph : graphs) graph.Draw("P SAME");
+  layer_legend.Draw();
+  side_legend.Draw();
+  pizza_canvas.Write();
 
   output.Close();
   return 0;

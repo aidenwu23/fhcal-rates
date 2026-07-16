@@ -14,6 +14,7 @@ namespace rates::insert_analysis::lfhcal_tiles::chip {
 
 struct ChipStats {
   std::uint64_t total_hits = 0;
+  std::uint64_t total_active_channels = 0;
   double total_payload_bits = 0.0;
 };
 

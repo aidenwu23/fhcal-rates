@@ -13,6 +13,7 @@ target_sources(insert_occupancy PRIVATE
   ${CMAKE_SOURCE_DIR}/scripts/src/utils.cc
   ${CMAKE_SOURCE_DIR}/scripts/src/decode_cell_id.cc
   ${CMAKE_SOURCE_DIR}/scripts/src/insert_to_lfhcal.cc
+  ${CMAKE_CURRENT_SOURCE_DIR}/occupancy/contour.cc
   ${CMAKE_CURRENT_SOURCE_DIR}/occupancy/original_insert/src/family.cc
   ${CMAKE_CURRENT_SOURCE_DIR}/occupancy/original_insert/src/with_inner_ring.cc
   ${CMAKE_CURRENT_SOURCE_DIR}/occupancy/original_insert/src/no_inner_ring.cc

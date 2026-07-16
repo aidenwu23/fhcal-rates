@@ -102,8 +102,7 @@ void accumulate_event(std::array<ChannelThresholdSum, 16>& channel_threshold_sum
 
       // If pass, count one passing event for this channel and accumulate bits.
       ++channel_threshold_sums[threshold_index].pass_counts[channel];
-      channel_data_threshold_sums[threshold_index].payload_bits[channel] +=
-          kBitsPerHit * kSamplesPerEvent;
+      channel_data_threshold_sums[threshold_index].payload_bits[channel] += kBitsPerHit * kSamplesPerEvent;
     }
   }
 
@@ -239,7 +238,7 @@ void write_output(TDirectory* parent,
                "g_chip_hit_rate_vs_mip",
                "rate [Hz]",
                8.0e4,
-               325.0e3,
+               270.0e3,
                chip_hit_rate_percentile_values);
 
   auto* chip_data_dir = parent->mkdir("chip_data_rate_vs_mip");
@@ -248,8 +247,8 @@ void write_output(TDirectory* parent,
                "Insert chip tail data rates vs MIP coefficient (LFHCal tiles);MIP coefficient;data rate [Gb/s]",
                "g_chip_data_rate_vs_mip",
                "data rate [Gb/s]",
-               0.0,
-               0.3,
+               0.05,
+               0.25,
                chip_data_rate_percentile_values);
 }
 

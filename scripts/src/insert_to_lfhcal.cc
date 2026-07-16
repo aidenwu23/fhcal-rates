@@ -6,8 +6,13 @@ namespace rates {
 namespace {
 
 constexpr double kVirtualCellSizeMm = 50.0;
-constexpr double kInsertHoleCenterXMM = -72.0;
+constexpr double kPizzaCenterXMM = 0.5 * (-3.95 - 21.5);
 constexpr double kPi = 3.14159265358979323846;
+constexpr double kLeftBoundary0 = 0.9127426518583035;
+constexpr double kLeftBoundary1 = 0.5 * kPi;
+constexpr double kLeftBoundary2 = 2.2288500017314896;
+constexpr double kRightBoundary0 = 0.8133195162331286;
+constexpr double kRightBoundary1 = 2.3282731373566645;
 
 // Bin an x or y coordinate into the corresponding 5 cm wide virtual-channel bin.
 int virtual_index(double coordinate_mm) {
@@ -83,16 +88,35 @@ VirtualLFHCALChipID InsertToLFHCALMapper::chip(const VirtualLFHCALChannelID& cha
 
 VirtualLFHCALPizzaChipID InsertToLFHCALMapper::pizza_chip(const VirtualLFHCALChannelID& channel,
                                                           int side) const {
+
+  // Convert channel position into an angular value.
   const double x_mm = (static_cast<double>(channel.ix) + 0.5) * kVirtualCellSizeMm;
   const double y_mm = (static_cast<double>(channel.iy) + 0.5) * kVirtualCellSizeMm;
-  const double angle = std::atan2(y_mm, x_mm - kInsertHoleCenterXMM);
+  const double angle = std::atan2(y_mm, x_mm - kPizzaCenterXMM);
 
+  // Give each side its own angle from 0 to pi:
+  // side 0 runs from the top edge, around the left, to the bottom edge;
+  // side 1 runs from the bottom edge, around the right, to the top edge.
   double side_angle = side == 0 ? angle - 0.5 * kPi : angle + 0.5 * kPi;
+
+  // Move negative results into the equivalent 0 to 2*pi range.
   if (side_angle < 0.0) side_angle += 2.0 * kPi;
 
-  const int region_count = channel.layer < 16 && side == 0 ? 4 : 3;
-  int region = static_cast<int>(std::floor(side_angle * static_cast<double>(region_count) / kPi));
-  if (region >= region_count) region = region_count - 1;
+  // A channel slightly beyond its side's half-circle is assigned to the nearest end of that side.
+  if (side_angle > 1.5 * kPi) side_angle = 0.0;
+  else if (side_angle > kPi) side_angle = kPi;
+
+  int region = 0;
+  if (side == 0) {
+    if (side_angle >= 0.0 && side_angle < kLeftBoundary0) region = 0;
+    else if (side_angle >= kLeftBoundary0 && side_angle < kLeftBoundary1) region = 1;
+    else if (side_angle >= kLeftBoundary1 && side_angle < kLeftBoundary2) region = 2;
+    else if (side_angle >= kLeftBoundary2 && side_angle <= kPi) region = 3;
+  } else {
+    if (side_angle >= 0.0 && side_angle < kRightBoundary0) region = 0;
+    else if (side_angle >= kRightBoundary0 && side_angle < kRightBoundary1) region = 1;
+    else if (side_angle >= kRightBoundary1 && side_angle <= kPi) region = 2;
+  }
 
   return VirtualLFHCALPizzaChipID{
       channel.layer,

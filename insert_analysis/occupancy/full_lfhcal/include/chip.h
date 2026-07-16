@@ -19,6 +19,7 @@ struct ChipStats {
   double x_mm = 0.0;
   double y_mm = 0.0;
   std::uint64_t total_hits = 0;
+  std::uint64_t total_active_channels = 0;
   double total_payload_bits = 0.0;
 };
 

@@ -230,8 +230,8 @@ void write_output(TDirectory* parent,
                "Insert chip tail hit rates vs MIP coefficient (full LFHCal readout);MIP coefficient;rate [Hz]",
                "g_chip_hit_rate_vs_mip",
                "rate [Hz]",
-               8.0e4,
-               4.2e5,
+               70.0e3,
+               230.0e3,
                chip_hit_rate_percentile_values);
 
   auto* chip_data_dir = parent->mkdir("chip_data_rate_vs_mip");
@@ -240,8 +240,8 @@ void write_output(TDirectory* parent,
                "Insert chip tail data rates vs MIP coefficient (full LFHCal readout);MIP coefficient;data rate [Gb/s]",
                "g_chip_data_rate_vs_mip",
                "data rate [Gb/s]",
-               0.0,
-               0.75,
+               0.05,
+               0.25,
                chip_data_rate_percentile_values);
 }
 
