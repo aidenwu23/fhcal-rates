@@ -40,8 +40,8 @@ The generic family code receives that mode for every event.
 
 `shared.cc::keep_channel` applies the removal.  The channel center is
 measured in local insert coordinates from the empty-hole center at
-`(-72 mm, 0 mm)`.  The center veto uses an effective 171 mm radius for original
-cells and 163 mm for 50 mm LFHCal tiles so boundary tiles overlapping the physical
+`(-72 mm, 0 mm)`.  The center veto uses an effective 163 mm radius for original
+cells and 50 mm LFHCal tiles so boundary tiles overlapping the physical
 146.1 mm hole are removed.  Since the filter runs before any occupancy,
 chip, MIP, radius, or side product receives a channel, every statistic in a
 `no_inner_ring` directory uses the same mask.

@@ -6,32 +6,26 @@
 #include <TGraph.h>
 #include <TLegend.h>
 
-#include <algorithm>
 #include <array>
+#include <unordered_map>
 
 namespace rates::insert_analysis::original_insert::side {
 namespace {
 
 constexpr std::array<double, 16> kCoefficients = {0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0, 1.1, 1.2, 1.3, 1.4, 1.5};
+constexpr double kYMaxGbps = 25.0;
 
 void draw_side_canvas(TDirectory* dir,
                       const std::array<std::array<double, kCoefficients.size()>, 2>& rates_gbps) {
-  double y_max = 0.0;
-  for (const auto& side_rates : rates_gbps) {
-    y_max = std::max(y_max, *std::max_element(side_rates.begin(), side_rates.end()));
-  }
-  if (y_max == 0.0) y_max = 1.0;
-  y_max *= 1.1;
-
   dir->cd();
   TCanvas canvas("c_side_data_rate_vs_mip",
-                 "Insert total data rate by side vs MIP coefficient;MIP coefficient;data rate [Gb/s]",
+                 "Insert total data rate by side vs MIP coefficient (original insert);MIP coefficient;data rate [Gb/s]",
                  1000,
                  800);
   canvas.SetGrid();
 
-  auto* frame = canvas.DrawFrame(kCoefficients.front(), 0.0, kCoefficients.back(), y_max);
-  frame->SetTitle("Insert total data rate by side vs MIP coefficient;MIP coefficient;data rate [Gb/s]");
+  auto* frame = canvas.DrawFrame(kCoefficients.front(), 0.0, kCoefficients.back(), kYMaxGbps);
+  frame->SetTitle("Insert total data rate by side vs MIP coefficient (original insert);MIP coefficient;data rate [Gb/s]");
   frame->GetXaxis()->SetTitle("MIP coefficient");
   frame->GetYaxis()->SetTitle("data rate [Gb/s]");
   frame->SetStats(false);
@@ -69,10 +63,15 @@ void draw_side_canvas(TDirectory* dir,
 
 void accumulate_event(std::array<std::array<ThresholdSum, 16>, 2>& threshold_sums,
                       const OccupancyMode& mode,
-                      const std::array<mip::EventEnergyMap, 2>& side_channel_energies) {
+                      const std::array<mip::EventEnergyMap, 2>& side_channel_energies,
+                      const rates::InsertToLFHCALMapper& mapper) {
 
   // Do both sides.
   for (int side = 0; side < 2; ++side) {
+    std::unordered_map<rates::VirtualLFHCALPizzaChipID,
+                       int,
+                       rates::VirtualLFHCALPizzaChipIDHash>
+        active_counts[16];
 
     // Per side, loop through all channels.
     for (const auto& [channel, energy] : side_channel_energies[side]) {
@@ -80,8 +79,21 @@ void accumulate_event(std::array<std::array<ThresholdSum, 16>, 2>& threshold_sum
       // Per channel, test every threshold.
       for (std::size_t threshold_index = 0; threshold_index < kCoefficients.size(); ++threshold_index) {
         if (energy <= kCoefficients[threshold_index] * channel_mip_energy_gev(mode, channel.layer)) continue;
-        threshold_sums[side][threshold_index].total_payload_bits += kBitsPerHit * kSamplesPerEvent;
+        ++active_counts[threshold_index][mapper.pizza_chip(channel.layer, channel.x_mm, channel.y_mm, side)];
       }
+    }
+
+    // Per side, loop over all thresholds.
+    for (std::size_t threshold_index = 0; threshold_index < kCoefficients.size(); ++threshold_index) {
+      double payload_bits = 0.0;
+
+      // Per threshold, sum the payload from every active chip.
+      for (const auto& [chip, active_channel_count] : active_counts[threshold_index]) {
+        (void)chip;
+        payload_bits +=
+            (kOverheadBits + kBitsPerHit * static_cast<double>(active_channel_count)) * kSamplesPerEvent;
+      }
+      threshold_sums[side][threshold_index].total_payload_bits += payload_bits;
     }
   }
 }

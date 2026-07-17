@@ -6,7 +6,6 @@
 #include <TGraph.h>
 #include <TLegend.h>
 
-#include <algorithm>
 #include <array>
 #include <unordered_map>
 
@@ -14,16 +13,10 @@ namespace rates::insert_analysis::lfhcal_tiles::side {
 namespace {
 
 constexpr std::array<double, 16> kCoefficients = {0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0, 1.1, 1.2, 1.3, 1.4, 1.5};
+constexpr double kYMaxGbps = 35.0;
 
 void draw_side_canvas(TDirectory* dir,
                       const std::array<std::array<double, kCoefficients.size()>, 2>& rates_gbps) {
-  double y_max = 0.0;
-  for (const auto& side_rates : rates_gbps) {
-    y_max = std::max(y_max, *std::max_element(side_rates.begin(), side_rates.end()));
-  }
-  if (y_max == 0.0) y_max = 1.0;
-  y_max *= 1.1;
-
   dir->cd();
   TCanvas canvas("c_side_data_rate_vs_mip",
                  "Insert total data rate by side vs MIP coefficient (LFHCal tiles);MIP coefficient;data rate [Gb/s]",
@@ -31,7 +24,7 @@ void draw_side_canvas(TDirectory* dir,
                  800);
   canvas.SetGrid();
 
-  auto* frame = canvas.DrawFrame(kCoefficients.front(), 0.0, kCoefficients.back(), y_max);
+  auto* frame = canvas.DrawFrame(kCoefficients.front(), 0.0, kCoefficients.back(), kYMaxGbps);
   frame->SetTitle("Insert total data rate by side vs MIP coefficient (LFHCal tiles);MIP coefficient;data rate [Gb/s]");
   frame->GetXaxis()->SetTitle("MIP coefficient");
   frame->GetYaxis()->SetTitle("data rate [Gb/s]");

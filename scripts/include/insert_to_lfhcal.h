@@ -61,6 +61,7 @@ class InsertToLFHCALMapper {
   VirtualLFHCALChannelID channel(int layer, double x_mm, double y_mm) const;
   VirtualLFHCALChannelID channel(const HcalEndcapPInsertCellID& cell, double x_mm, double y_mm) const;
   VirtualLFHCALChipID chip(const VirtualLFHCALChannelID& channel) const;
+  VirtualLFHCALPizzaChipID pizza_chip(int layer, double x_mm, double y_mm, int side) const;
   VirtualLFHCALPizzaChipID pizza_chip(const VirtualLFHCALChannelID& channel, int side) const;
 };
 

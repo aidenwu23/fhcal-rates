@@ -30,7 +30,7 @@ struct Configuration {
 };
 
 constexpr std::array<Configuration, 3> kConfigurations = {{
-    {"original_insert", "Original insert", false},
+    {"original_insert", "Original insert", true},
     {"lfhcal_tiles", "LFHCal-sized tiles", true},
     {"full_lfhcal", "Full LFHCal readout", true},
 }};

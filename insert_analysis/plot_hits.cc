@@ -5,6 +5,7 @@
 */
 
 #include <TCanvas.h>
+#include <TEllipse.h>
 #include <TFile.h>
 #include <TGraph.h>
 #include <TH1.h>
@@ -46,6 +47,8 @@ constexpr int kFirstLayer = 1;
 // Show a fixed 500 mm radius window around the origin.
 constexpr double kWindowRadiusMm = 500.0;
 constexpr double kVirtualCellSizeMm = 50.0;
+constexpr double kInnerRingCenterXMM = -72.0;
+constexpr double kInnerRingRadiusMm = 163.0;
 constexpr double kPizzaCenterXMM = 0.5 * (-3.95 - 21.5);
 constexpr double kPi = 3.14159265358979323846;
 constexpr double kLeftBoundaryAngle = 0.6580536749365931;
@@ -230,14 +233,14 @@ int main(int argc, char* argv[]) {
     segmentation_lines.emplace_back(coordinate, -kWindowRadiusMm, coordinate, kWindowRadiusMm);
     auto& vertical_line = segmentation_lines.back();
     vertical_line.SetLineColor(kGray + 2);
-    vertical_line.SetLineStyle(3);
+    vertical_line.SetLineStyle(1);
     vertical_line.SetLineWidth(2);
     vertical_line.Draw();
 
     segmentation_lines.emplace_back(-kWindowRadiusMm, coordinate, kWindowRadiusMm, coordinate);
     auto& horizontal_line = segmentation_lines.back();
     horizontal_line.SetLineColor(kGray + 2);
-    horizontal_line.SetLineStyle(3);
+    horizontal_line.SetLineStyle(1);
     horizontal_line.SetLineWidth(2);
     horizontal_line.Draw();
   }
@@ -255,7 +258,7 @@ int main(int argc, char* argv[]) {
   chip_lines.emplace_back(kPizzaCenterXMM, -kWindowRadiusMm, kPizzaCenterXMM, kWindowRadiusMm);
   auto& side_line = chip_lines.back();
   side_line.SetLineColor(kRed + 1);
-  side_line.SetLineStyle(3);
+  side_line.SetLineStyle(1);
   side_line.SetLineWidth(2);
 
   for (const double angle : chip_boundary_angles) {
@@ -274,26 +277,25 @@ int main(int argc, char* argv[]) {
         ray_length * dy);
     auto& line = chip_lines.back();
     line.SetLineColor(kRed + 1);
-    line.SetLineStyle(3);
+    line.SetLineStyle(1);
     line.SetLineWidth(2);
   }
+
+  TEllipse inner_ring_cut(
+      kInnerRingCenterXMM,
+      0.0,
+      kInnerRingRadiusMm,
+      kInnerRingRadiusMm);
+  inner_ring_cut.SetFillStyle(0);
+  inner_ring_cut.SetLineColor(kOrange + 7);
+  inner_ring_cut.SetLineWidth(2);
+  inner_ring_cut.Draw();
 
   // Keep graphs alive until the canvas is written.
   std::vector<TGraph> graphs;
   graphs.reserve(kMaxLayersToPlot * 2);
 
-  // Legend for colors by layer.
-  TLegend layer_legend(0.12, 0.72, 0.32, 0.88);
-  layer_legend.SetBorderSize(0);
-  layer_legend.SetFillStyle(0);
-
-  // Legend for marker shape by side.
-  TLegend side_legend(0.72, 0.78, 0.88, 0.88);
-  side_legend.SetBorderSize(0);
-  side_legend.SetFillStyle(0);
-
-  bool drew_left_legend = false;
-  bool drew_right_legend = false;
+  std::array<TGraph*, kMaxLayersToPlot> layer_legend_graphs{};
 
   // Loop over the requested layers and draw one graph for each side that has cells.
   for (int layer_slot = 0; layer_slot < kMaxLayersToPlot; ++layer_slot) {
@@ -316,23 +318,33 @@ int main(int argc, char* argv[]) {
       graph.SetMarkerSize(side == 0 ? 0.8 : 1.0);
       graph.Draw("P SAME");
 
-      // Layer is represented by color, so one legend entry per layer is enough.
-      if (side == 0) {
-        layer_legend.AddEntry(&graph, ("Layer " + std::to_string(layer_value)).c_str(), "p");
-        if (!drew_left_legend) {
-          side_legend.AddEntry(&graph, "left", "p");
-          drew_left_legend = true;
-        }
-      } else if (!drew_right_legend) {
-        side_legend.AddEntry(&graph, "right", "p");
-        drew_right_legend = true;
-      }
+      if (layer_legend_graphs[layer_slot] == nullptr) layer_legend_graphs[layer_slot] = &graph;
     }
   }
 
+  TLegend legend(0.12, 0.62, 0.32, 0.88);
+  legend.SetBorderSize(1);
+  legend.SetLineColor(kBlack);
+  legend.SetFillColor(kWhite);
+  legend.SetFillStyle(1001);
+
+  TGraph left_legend_marker;
+  left_legend_marker.SetMarkerColor(kBlack);
+  left_legend_marker.SetMarkerStyle(24);
+  TGraph right_legend_marker;
+  right_legend_marker.SetMarkerColor(kBlack);
+  right_legend_marker.SetMarkerStyle(25);
+  legend.AddEntry(&left_legend_marker, "left", "p");
+  legend.AddEntry(&right_legend_marker, "right", "p");
+  legend.AddEntry(static_cast<TObject*>(nullptr), " ", "");
+  for (int layer_slot = 0; layer_slot < kMaxLayersToPlot; ++layer_slot) {
+    if (layer_legend_graphs[layer_slot] == nullptr) continue;
+    const int layer_value = kFirstLayer + layer_slot;
+    legend.AddEntry(layer_legend_graphs[layer_slot], ("Layer " + std::to_string(layer_value)).c_str(), "p");
+  }
+
   // Write the frame, marker graphs, and canvases into the output file.
-  layer_legend.Draw();
-  side_legend.Draw();
+  legend.Draw();
 
   frame_hist.Write();
   for (auto& graph : graphs) {
@@ -344,9 +356,9 @@ int main(int argc, char* argv[]) {
   frame_hist.Draw();
   for (auto& line : segmentation_lines) line.Draw();
   for (auto& line : chip_lines) line.Draw();
+  inner_ring_cut.Draw();
   for (auto& graph : graphs) graph.Draw("P SAME");
-  layer_legend.Draw();
-  side_legend.Draw();
+  legend.Draw();
   pizza_canvas.Write();
 
   output.Close();

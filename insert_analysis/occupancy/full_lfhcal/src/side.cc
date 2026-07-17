@@ -116,7 +116,7 @@ void write_output(TDirectory* parent,
   }
 
   auto* dir = parent->mkdir("side_data_rate_vs_mip");
-  const double y_max = mode.drop_inner_ring ? 11.0 : 12.0;
+  const double y_max = 12.0;
   draw_side_canvas(dir, rates_gbps, y_max);
 }
 

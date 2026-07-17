@@ -186,10 +186,12 @@ int main(int argc, char* argv[]) {
       // Fold this event into each requested layout after every hit has been decoded.
       rates::insert_analysis::original_insert::with_inner_ring::accumulate_event(
           original_insert_with_inner_ring,
-          event_hits);
+          event_hits,
+          mapper);
       rates::insert_analysis::original_insert::no_inner_ring::accumulate_event(
           original_insert_no_inner_ring,
-          event_hits);
+          event_hits,
+          mapper);
       rates::insert_analysis::lfhcal_tiles::with_inner_ring::accumulate_event(
           lfhcal_tiles_with_inner_ring,
           event_hits,

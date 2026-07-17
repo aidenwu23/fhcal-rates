@@ -86,12 +86,10 @@ VirtualLFHCALChipID InsertToLFHCALMapper::chip(const VirtualLFHCALChannelID& cha
   };
 }
 
-VirtualLFHCALPizzaChipID InsertToLFHCALMapper::pizza_chip(const VirtualLFHCALChannelID& channel,
+VirtualLFHCALPizzaChipID InsertToLFHCALMapper::pizza_chip(int layer,
+                                                          double x_mm,
+                                                          double y_mm,
                                                           int side) const {
-
-  // Convert channel position into an angular value.
-  const double x_mm = (static_cast<double>(channel.ix) + 0.5) * kVirtualCellSizeMm;
-  const double y_mm = (static_cast<double>(channel.iy) + 0.5) * kVirtualCellSizeMm;
   const double angle = std::atan2(y_mm, x_mm - kPizzaCenterXMM);
 
   // Give each side its own angle from 0 to pi:
@@ -119,10 +117,18 @@ VirtualLFHCALPizzaChipID InsertToLFHCALMapper::pizza_chip(const VirtualLFHCALCha
   }
 
   return VirtualLFHCALPizzaChipID{
-      channel.layer,
+      layer,
       side,
       region,
   };
+}
+
+VirtualLFHCALPizzaChipID InsertToLFHCALMapper::pizza_chip(const VirtualLFHCALChannelID& channel,
+                                                          int side) const {
+  // Convert channel position into an angular value.
+  const double x_mm = (static_cast<double>(channel.ix) + 0.5) * kVirtualCellSizeMm;
+  const double y_mm = (static_cast<double>(channel.iy) + 0.5) * kVirtualCellSizeMm;
+  return pizza_chip(channel.layer, x_mm, y_mm, side);
 }
 
 }  // namespace rates

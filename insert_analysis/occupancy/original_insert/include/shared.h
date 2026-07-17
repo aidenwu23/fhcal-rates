@@ -16,7 +16,7 @@ namespace rates::insert_analysis::original_insert {
 constexpr int kNLayers = 60;
 constexpr double kEventWindowSec = 2e-6;
 constexpr double kInnerRingCenterXMM = -72.0;
-constexpr double kInnerRingRadiusMM = 171.0;
+constexpr double kInnerRingRadiusMM = 163.0;
 constexpr double kOverheadBits = 128.0;
 constexpr double kBitsPerHit = 32.0;
 constexpr double kSamplesPerEvent = 4.0;

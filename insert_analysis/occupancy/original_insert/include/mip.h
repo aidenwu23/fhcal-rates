@@ -1,5 +1,6 @@
 #pragma once
 
+#include "insert_to_lfhcal.h"
 #include "original_insert/include/shared.h"
 
 #include <TDirectory.h>
@@ -22,6 +23,16 @@ struct ChannelDataThresholdSum {
   std::unordered_map<OriginalChannelID, double, OriginalChannelIDHash> payload_bits;
 };
 
+struct ChipThresholdSum {
+  // pass_counts[chip]: events where at least one chip channel passed this threshold.
+  std::unordered_map<rates::VirtualLFHCALPizzaChipID, std::uint64_t, rates::VirtualLFHCALPizzaChipIDHash> pass_counts;
+};
+
+struct ChipDataThresholdSum {
+  // payload_bits[chip]: data carried by the chip across the full sample.
+  std::unordered_map<rates::VirtualLFHCALPizzaChipID, double, rates::VirtualLFHCALPizzaChipIDHash> payload_bits;
+};
+
 // EventEnergyMap[channel]: energy summed before thresholding one event.
 using EventEnergyMap = std::unordered_map<OriginalChannelID, double, OriginalChannelIDHash>;
 
@@ -30,12 +41,18 @@ using EventEnergyMap = std::unordered_map<OriginalChannelID, double, OriginalCha
 // ----------------------------------------------------------------------------------
 void accumulate_event(std::array<ChannelThresholdSum, 16>& channel_threshold_sums,
                       std::array<ChannelDataThresholdSum, 16>& channel_data_threshold_sums,
+                      std::array<ChipThresholdSum, 16>& chip_threshold_sums,
+                      std::array<ChipDataThresholdSum, 16>& chip_data_threshold_sums,
                       const OccupancyMode& mode,
-                      const EventEnergyMap& channel_energies);
+                      const EventEnergyMap& channel_energies,
+                      const std::array<EventEnergyMap, 2>& side_channel_energies,
+                      const rates::InsertToLFHCALMapper& mapper);
 
 void write_output(TDirectory* parent,
                   const std::array<ChannelThresholdSum, 16>& channel_threshold_sums,
                   const std::array<ChannelDataThresholdSum, 16>& channel_data_threshold_sums,
+                  const std::array<ChipThresholdSum, 16>& chip_threshold_sums,
+                  const std::array<ChipDataThresholdSum, 16>& chip_data_threshold_sums,
                   const OccupancyMode& mode,
                   std::uint64_t n_events);
 

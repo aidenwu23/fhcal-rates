@@ -228,7 +228,7 @@ void write_output(TDirectory* parent,
                "g_channel_data_rate_vs_mip",
                "data rate [Gb/s]",
                0.0,
-               mode.drop_inner_ring ? 8.5e-3 : 9.0e-3,
+               9.0e-3,
                channel_data_rate_percentile_values);
 
   auto* chip_hit_dir = parent->mkdir("chip_hit_rate_vs_mip");

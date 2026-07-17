@@ -19,8 +19,9 @@ void init_outputs(Outputs& outputs) {
 }
 
 void accumulate_event(Outputs& outputs,
-                      const std::vector<rates::insert_analysis::EventHit>& event_hits) {
-  original_insert::accumulate_event(outputs, event_hits);
+                      const std::vector<rates::insert_analysis::EventHit>& event_hits,
+                      const rates::InsertToLFHCALMapper& mapper) {
+  original_insert::accumulate_event(outputs, event_hits, mapper);
 }
 
 void write_output(TFile& output,
