@@ -231,7 +231,7 @@ void write_output(TDirectory* parent,
                "g_chip_hit_rate_vs_mip",
                "rate [Hz]",
                70.0e3,
-               230.0e3,
+               500.0e3,
                chip_hit_rate_percentile_values);
 
   auto* chip_data_dir = parent->mkdir("chip_data_rate_vs_mip");
@@ -241,7 +241,7 @@ void write_output(TDirectory* parent,
                "g_chip_data_rate_vs_mip",
                "data rate [Gb/s]",
                0.05,
-               0.25,
+               0.7,
                chip_data_rate_percentile_values);
 }
 

@@ -13,7 +13,7 @@ namespace rates::insert_analysis::original_insert::side {
 namespace {
 
 constexpr std::array<double, 16> kCoefficients = {0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0, 1.1, 1.2, 1.3, 1.4, 1.5};
-constexpr double kYMaxGbps = 25.0;
+constexpr double kYMaxGbps = 35.0;
 
 void draw_side_canvas(TDirectory* dir,
                       const std::array<std::array<double, kCoefficients.size()>, 2>& rates_gbps) {
