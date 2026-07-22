@@ -100,7 +100,15 @@ int main(int argc, char* argv[]) {
     return 1;
   }
 
-  // One channel-energy histogram per readout layer.
+  // All physical layers use the same tile, so one histogram collects every tile energy.
+  auto* h_tile_energy = new TH1D(
+      "h_tile_energy",
+      "Muon tile energy per event;tile energy [GeV];counts",
+      200,
+      0.0,
+      0.005);
+
+  // Channel construction changes with readout layer, so keep one histogram per layer.
   std::array<TH1D*, kNReadoutLayers> h_channel_energy{};
   for (int layer = 0; layer < kNReadoutLayers; ++layer) {
     h_channel_energy[layer] = new TH1D(
@@ -121,11 +129,12 @@ int main(int argc, char* argv[]) {
     podio::Frame frame(std::move(data));
     if (!rates::has_collection(frame, kHitCollection)) continue;
 
-    // For this event, summed channel energy is tracked separately in each readout layer.
+    // For this event, sum each physical tile and each layer-dependent readout channel.
+    std::unordered_map<std::uint64_t, double> tile_energy;
     std::array<std::unordered_map<rates::LFHCALChannelID, double, rates::LFHCALChannelIDHash>, kNReadoutLayers> channel_energy_by_layer;
     const auto& hits = frame.get<edm4hep::SimCalorimeterHitCollection>(kHitCollection);
 
-    // Loop hits and assign each hit's energy to its event-level channel sum.
+    // Loop hits and assign each accepted energy deposit to its tile and channel sums.
     for (const auto& hit : hits) {
       const auto cell_id = static_cast<std::uint64_t>(hit.getCellID());
       if (decoder.is_passive(cell_id)) continue;
@@ -133,25 +142,32 @@ int main(int argc, char* argv[]) {
       const auto channel = decoder.channel(cell_id);
       if (channel.rlayerz < 0 || channel.rlayerz >= kNReadoutLayers) continue;
 
-      // Keep just the central channels whose transverse radius is below 1000 mm.
+      // Keep tiles and channels whose transverse radius is below 1000 mm.
       const auto position = decoder.position(cell_id);
       const double radius_mm2 = position.x_mm * position.x_mm + position.y_mm * position.y_mm;
       if (radius_mm2 > kMaxRadiusMm2) continue;
 
       double filtered_hit_energy_gev = 0.0;
 
-      // Skip tiny contributions before adding this hit's energy into the channel sum.
+      // Skip tiny contributions before adding this hit to the tile and channel sums.
       for (const auto& contribution : hit.getContributions()) {
         if (contribution.getEnergy() < kMinContributionGeV) continue;
         filtered_hit_energy_gev += contribution.getEnergy();
       }
 
       if (filtered_hit_energy_gev > 0.0) {
+        tile_energy[cell_id] += filtered_hit_energy_gev;
         channel_energy_by_layer[channel.rlayerz][channel] += filtered_hit_energy_gev;
       }
     }
 
-    // Once the full event has been summed, fill one entry per channel into the layer histogram.
+    // Once the full event has been summed, fill one entry per tile.
+    for (const auto& [cell_id, energy_gev] : tile_energy) {
+      (void)cell_id;
+      h_tile_energy->Fill(energy_gev);
+    }
+
+    // Fill channels separately because their summed depth depends on the readout layer.
     for (int layer = 0; layer < kNReadoutLayers; ++layer) {
       for (const auto& [channel, energy_gev] : channel_energy_by_layer[layer]) {
         (void)channel;
@@ -168,10 +184,12 @@ int main(int argc, char* argv[]) {
 
   auto* hist_dir = output.mkdir("hists");
   hist_dir->cd();
+  h_tile_energy->Write();
   for (int layer = 0; layer < kNReadoutLayers; ++layer) {
     h_channel_energy[layer]->Write();
   }
 
+  draw_and_write(&output, h_tile_energy, "c_tile_energy");
   for (int layer = 0; layer < kNReadoutLayers; ++layer) {
     draw_and_write(&output,
                    h_channel_energy[layer],
