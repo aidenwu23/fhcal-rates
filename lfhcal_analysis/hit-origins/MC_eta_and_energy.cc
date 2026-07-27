@@ -1,6 +1,6 @@
 /*
 
-./build/MC_eta_and_energy -i data/bkg_apr -o lfhcal_plots/hit-origins/MC_eta_and_energy.root
+./build/MC_eta_and_energy -i data/bkg_july -o lfhcal_plots/hit-origins/MC_eta_and_energy.root
 
 */
 
@@ -17,7 +17,6 @@
 #include "classify_hit.h"
 #include "utils.h"
 
-#include <algorithm>
 #include <cmath>
 #include <filesystem>
 #include <iostream>
@@ -110,22 +109,19 @@ void draw_overlay(TFile& file,
   TLegend legend(0.66, 0.62, 0.88, 0.88);
   legend.SetBorderSize(1);
 
-  double max = 0.0;
-  for (auto* hist : hists) max = std::max(max, hist->GetMaximum());
-
   for (std::size_t i = 0; i < hists.size(); ++i) {
     auto* hist = hists[i];
     hist->Write();
     hist->SetTitle(title);
     if (logy) {
       hist->SetMinimum(0.5);
-      if (max > 0.0) hist->SetMaximum(max * 5.0);
     }
     hist->Draw(i == 0 ? "hist" : "hist same");
     legend.AddEntry(hist, kOrigins[i].label, "l");
   }
 
   legend.Draw();
+  rates::pad_axes(*hists.front(), hists);
   canvas.Write();
   file.cd();
 }

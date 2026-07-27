@@ -4,6 +4,7 @@
 
 #include <TCanvas.h>
 #include <TGraph.h>
+#include <TMultiGraph.h>
 
 #include <array>
 #include <string>
@@ -24,17 +25,15 @@ void write_output(TDirectory* parent,
                   const std::vector<double>& chip_rates_hz,
                   const std::vector<double>& mean_fired_channels) {
   // Draw chip rate versus fired-channel multiplicity.
+  auto* graph_directory = parent->mkdir("graphs");
   parent->cd();
   const char* title = "LFHCAL mean fired channels per active chip-event;rate [Hz];mean fired channels";
   TCanvas canvas("c_fired_channels_vs_rate", title, 1000, 800);
   canvas.SetGrid();
-  auto* frame = canvas.DrawFrame(0.0, 0.0, 5.0e4, 5.0);
-  frame->SetTitle(title);
 
   TGraph graph(static_cast<int>(chip_rates_hz.size()), chip_rates_hz.data(), mean_fired_channels.data());
   graph.SetName("g_fired_channels_vs_rate");
   graph.SetMarkerStyle(20);
-  graph.Draw("P SAME");
 
   std::vector<TGraph> contours;
   contours.reserve(kRatesGbps.size());
@@ -45,9 +44,9 @@ void write_output(TDirectory* parent,
     
     // Sample the contour across the visible chip-rate range.
     for (int step = 1; step <= 400; ++step) {
-      const double rate_hz = 5.0e4 * static_cast<double>(step) / 400.0;
+      const double rate_hz = 1.0e5 * static_cast<double>(step) / 400.0;
       const double channels = contour_y(rate_hz, kRatesGbps[index]);
-      if (channels < 0.0 || channels > 5.0) continue;
+      if (channels < 0.0 || channels > 2.4) continue;
       x.push_back(rate_hz);
       y.push_back(channels);
     }
@@ -57,11 +56,22 @@ void write_output(TDirectory* parent,
     contour.SetName(("g_contour_" + std::to_string(index)).c_str());
     contour.SetLineColor(17);
     contour.SetLineStyle(2);
-    contour.Draw("L SAME");
   }
 
+  TMultiGraph overlay;
+  overlay.Add(&graph, "P");
+  for (auto& contour : contours) overlay.Add(&contour, "L");
+  overlay.SetTitle(title);
+  overlay.Draw("A");
+  rates::pad_axes(overlay);
+  overlay.GetXaxis()->SetLimits(0.0, 1.0e5);
+  overlay.SetMinimum(0.0);
+  overlay.SetMaximum(2.4);
+
   // Write the combined canvas and its component graphs.
+  parent->cd();
   canvas.Write();
+  graph_directory->cd();
   graph.Write();
   for (auto& contour : contours) contour.Write();
 }

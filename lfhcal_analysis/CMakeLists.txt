@@ -91,5 +91,4 @@ target_link_libraries(
 install(TARGETS channel_count RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
 
 add_subdirectory(hit-origins)
-add_subdirectory(performance)
 add_subdirectory(muons)

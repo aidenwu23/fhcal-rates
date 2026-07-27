@@ -1,6 +1,6 @@
 /*
 
-./build/bkg_composition -i data/bkg_apr -o insert_plots/bkg_composition.root
+./build/bkg_composition -i data/bkg_july -o insert_plots/bkg_composition.root
 
 */
 

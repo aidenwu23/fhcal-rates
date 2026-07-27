@@ -9,7 +9,7 @@
 namespace rates::lfhcal_analysis::occupancy::multiplicity {
 
 struct Outputs {
-  std::array<TH1D*, kNReadoutLayers> layer_hists{};
+  std::array<TH1D*, kNChannelTypes> channel_type_hists{};
 };
 
 void init(Outputs& outputs);

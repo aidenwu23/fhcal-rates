@@ -10,7 +10,7 @@
 
 namespace rates::lfhcal_analysis::occupancy::radius {
 
-constexpr std::array<double, 3> kThresholds = {0.1, 0.5, 1.5};
+constexpr std::array<double, 3> kThresholds = {0.1, 0.3, 0.5};
 
 struct ThresholdSum {
   std::unordered_map<rates::LFHCALChipID, double, rates::LFHCALChipIDHash> payload_bits;

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 
-python3 scripts/data_prep/run_bkg.py 0 499 -o data/bkg_apr --list data/metadata/bkg_apr.txt --delete-intermediates
+python3 scripts/data_prep/run_bkg.py 0 499 -o data/bkg_july --list data/metadata/bkg_july.txt --delete-intermediates
 
 """
 
@@ -60,7 +60,12 @@ def main():
         raw = raw_path(dataset)
         output = output_dir / raw.name
 
-        download = run([str(DOWNLOAD_SH), str(index), str(index), str(list_file)], check=False)
+        download = run([
+            str(DOWNLOAD_SH),
+            "--start", str(index),
+            "--end", str(index),
+            "--metadata", str(list_file),
+        ], check=False)
         print()
         if download.returncode != 0 or not raw.exists():
             print(f"WARNING missing file at index {index}: {dataset}", flush=True)

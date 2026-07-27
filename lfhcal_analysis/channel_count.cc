@@ -1,6 +1,6 @@
 /*
 
-./build/channel_count -i data/bkg_apr
+./build/channel_count -i data/bkg_july
 
 */
 

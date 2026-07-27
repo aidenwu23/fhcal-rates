@@ -53,6 +53,8 @@ void write_output(TDirectory* parent, const ChipSum& chip_sum, std::uint64_t n_e
   const double total_time_sec = static_cast<double>(n_events) * kEventWindowSec;
   auto* hit_dir = parent->mkdir("chip_hit_rate");
   auto* data_dir = parent->mkdir("chip_data_rate");
+  auto* hit_hist_dir = hit_dir->mkdir("hists");
+  auto* data_hist_dir = data_dir->mkdir("hists");
 
   TH1D hit_rate("h_hit_rate", "LFHCAL chip hit rate;rate [Hz/chip];chips", 240, 0.0, 2.0e5);
   TH1D data_rate("h_data_rate", "LFHCAL chip data rate;data rate [Gb/s/chip];chips", 240, 0.0, 0.1);
@@ -71,12 +73,14 @@ void write_output(TDirectory* parent, const ChipSum& chip_sum, std::uint64_t n_e
   }
 
   // Write the chip histograms and canvases.
-  hit_dir->cd();
+  hit_hist_dir->cd();
   hit_rate.Write();
   chip_sum.h_chips_event->Write();
   chip_sum.h_active_channels->Write();
   draw_and_write(hit_dir, &hit_rate, "c_hit_rate", false, true);
-  data_dir->cd();
+  draw_and_write(hit_dir, chip_sum.h_chips_event, "c_chips_event", false, true);
+  draw_and_write(hit_dir, chip_sum.h_active_channels, "c_active_channels", false, true);
+  data_hist_dir->cd();
   data_rate.Write();
   draw_and_write(data_dir, &data_rate, "c_data_rate", false, true);
 

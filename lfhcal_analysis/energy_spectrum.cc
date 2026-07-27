@@ -1,6 +1,6 @@
 /*
 
-./build/lfhcal_energy_spectrum -i data/bkg_apr -o lfhcal_plots/energy_spectrum.root
+./build/lfhcal_energy_spectrum -i data/bkg_july -o lfhcal_plots/energy_spectrum.root
 
 */
 
@@ -75,6 +75,7 @@ void draw_and_write(TDirectory* dir, TH1* hist, const char* canvas_name, bool lo
   if (logy) canvas.SetLogy();
   hist->SetStats(false);
   hist->Draw("hist");
+  rates::pad_axes(*hist);
   canvas.Write();
 }
 

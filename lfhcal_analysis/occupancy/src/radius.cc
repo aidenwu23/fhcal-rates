@@ -4,6 +4,7 @@
 #include <TColor.h>
 #include <TGraph.h>
 #include <TLegend.h>
+#include <TMultiGraph.h>
 
 #include <algorithm>
 #include <array>
@@ -89,18 +90,18 @@ void write_output(TDirectory* parent,
     }
 
     auto* directory = radius_dir->mkdir(threshold_tag(kThresholds[threshold_index]).c_str());
+    auto* graph_directory = directory->mkdir("graphs");
     directory->cd();
     const std::string title = "LFHCAL chip data rate vs radius, " + std::to_string(kThresholds[threshold_index]) +
                               " MIP;radius [mm];data rate [Gb/s]";
     TCanvas canvas(("c_" + threshold_tag(kThresholds[threshold_index]) + "_data_rate_vs_radius").c_str(), title.c_str(), 1000, 800);
     canvas.SetGrid();
-    auto* frame = canvas.DrawFrame(0.0, 0.0, kRadiusMaxMM, 0.05);
-    frame->SetTitle(title.c_str());
     TLegend legend(0.7, 0.76, 0.88, 0.88);
     std::array<TGraph, 3> graphs = {
         TGraph(kRadiusBins, centers.data(), values[0].data()),
         TGraph(kRadiusBins, centers.data(), values[1].data()),
         TGraph(kRadiusBins, centers.data(), values[2].data())};
+    TMultiGraph overlay;
         
     // Style, label, and write the three radial summary graphs.
     for (std::size_t percentile = 0; percentile < graphs.size(); ++percentile) {
@@ -110,11 +111,16 @@ void write_output(TDirectory* parent,
       graphs[percentile].SetLineColor(colors[percentile]);
       graphs[percentile].SetMarkerColor(graphs[percentile].GetLineColor());
       graphs[percentile].SetMarkerStyle(20 + static_cast<int>(percentile));
-      graphs[percentile].Draw("LP SAME");
+      overlay.Add(&graphs[percentile], "LP");
       legend.AddEntry(&graphs[percentile], label.c_str(), "lp");
     }
+    overlay.SetTitle(title.c_str());
+    overlay.Draw("A");
+    rates::pad_axes(overlay);
     legend.Draw();
+    directory->cd();
     canvas.Write();
+    graph_directory->cd();
     for (auto& graph : graphs) graph.Write();
   }
 }

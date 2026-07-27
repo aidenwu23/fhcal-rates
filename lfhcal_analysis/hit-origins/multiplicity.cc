@@ -1,6 +1,6 @@
 /*
 
-./build/multiplicity -i data/bkg_apr -o lfhcal_plots/hit-origins/multiplicity.root
+./build/multiplicity -i data/bkg_july -o lfhcal_plots/hit-origins/multiplicity.root
 
 */
 
@@ -76,6 +76,7 @@ void draw_and_write(TDirectory* dir, TH1* hist, const char* canvas_name) {
   TCanvas canvas(canvas_name, hist->GetTitle(), 1000, 800);
   hist->SetStats(false);
   hist->Draw("hist");
+  rates::pad_axes(*hist);
   canvas.Write();
 }
 

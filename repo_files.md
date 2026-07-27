@@ -97,7 +97,6 @@
 - `./lfhcal_analysis/hit-origins/src/edep.cc`
 - `./lfhcal_analysis/hit-origins/src/eta.cc`
 - `./lfhcal_analysis/muons/histogram_mip.cc`
-- `./lfhcal_analysis/performance/energy_res.cc`
 - `./scripts/data_prep/filter.cc`
 - `./scripts/include/classify_hit.h`
 - `./scripts/include/decode_cell_id.h`

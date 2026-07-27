@@ -16,6 +16,18 @@ std::string layer_title(int layer) {
   return layer == kAllLayers ? "LFHCAL all readout layers" : "LFHCAL readout layer " + std::to_string(layer + 1);
 }
 
+int channel_type(int layer) {
+  return layer < 2 ? 0 : 1;
+}
+
+std::string channel_type_name(int type) {
+  return type == 0 ? "5_tile" : "10_tile";
+}
+
+std::string channel_type_title(int type) {
+  return type == 0 ? "LFHCAL 5-tile channels" : "LFHCAL 10-tile channels";
+}
+
 std::size_t percentile_index(std::size_t n_values, double percentile) {
   // Map a percentile fraction onto a sorted vector index.
   if (n_values == 0) return 0;
@@ -29,7 +41,9 @@ void draw_and_write(TDirectory* directory, TH1* histogram, const char* canvas_na
   if (logx) canvas.SetLogx();
   if (logy) canvas.SetLogy();
   histogram->SetStats(false);
+  histogram->SetLineWidth(2);
   histogram->Draw("hist");
+  rates::pad_axes(*histogram);
   canvas.Write();
 }
 

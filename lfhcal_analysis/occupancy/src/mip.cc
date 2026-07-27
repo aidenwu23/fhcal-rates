@@ -4,6 +4,7 @@
 #include <TColor.h>
 #include <TGraph.h>
 #include <TLegend.h>
+#include <TMultiGraph.h>
 
 #include <algorithm>
 #include <array>
@@ -18,17 +19,19 @@ namespace {
 constexpr std::array<double, 2> kPercentiles = {0.95, 0.99};
 constexpr std::array<int, 2> kColors = {kBlue + 1, kRed + 1};
 
-void draw_overlay(TDirectory* directory,
+void draw_overlay(TDirectory* graph_directory,
+                  TDirectory* canvas_directory,
                   const char* canvas_name,
                   const char* title,
                   const char* graph_name,
+                  double y_min,
+                  bool logy,
                   const std::array<std::array<double, kMIPCoefficients.size()>, 2>& values) {
   // Draw p95 and p99 threshold curves on one canvas.
-  directory->cd();
+  canvas_directory->cd();
   TCanvas canvas(canvas_name, title, 1000, 800);
   canvas.SetGrid();
-  auto* frame = canvas.DrawFrame(0.0, 0.0, 1.5, 1.1 * std::max(values[1][0], 1.0));
-  frame->SetTitle(title);
+  if (logy) canvas.SetLogy();
 
   TLegend legend(0.68, 0.75, 0.88, 0.88);
   legend.SetBorderSize(0);
@@ -36,6 +39,7 @@ void draw_overlay(TDirectory* directory,
   std::array<TGraph, 2> graphs = {
       TGraph(static_cast<int>(kMIPCoefficients.size()), kMIPCoefficients.data(), values[0].data()),
       TGraph(static_cast<int>(kMIPCoefficients.size()), kMIPCoefficients.data(), values[1].data())};
+  TMultiGraph overlay;
 
   // Style, label, and write each percentile curve.
   for (std::size_t index = 0; index < graphs.size(); ++index) {
@@ -43,43 +47,116 @@ void draw_overlay(TDirectory* directory,
     graphs[index].SetLineColor(kColors[index]);
     graphs[index].SetMarkerColor(kColors[index]);
     graphs[index].SetMarkerStyle(20 + static_cast<int>(index));
-    graphs[index].Draw("LP SAME");
+    overlay.Add(&graphs[index], "LP");
     legend.AddEntry(&graphs[index], ("p" + std::to_string(static_cast<int>(100.0 * kPercentiles[index]))).c_str(), "lp");
   }
+  overlay.SetTitle(title);
+  overlay.Draw("A");
+  rates::pad_axes(overlay);
+  overlay.GetXaxis()->SetLimits(0.0, 1.5);
+  overlay.SetMinimum(y_min);
   legend.Draw();
+  canvas_directory->cd();
   canvas.Write();
+  graph_directory->cd();
   for (auto& graph : graphs) graph.Write();
 }
 
-void write_mean_graph(TDirectory* directory,
+void write_mean_graph(TDirectory* graph_directory,
+                      TDirectory* canvas_directory,
                       const std::array<double, kMIPCoefficients.size()>& values) {
-  directory->cd();
+  // Draw and write the mean chip data-rate threshold scan.
+  canvas_directory->cd();
+  TCanvas canvas("c_mean_chip_data_rate_vs_mip",
+                 "LFHCAL mean chip data rate vs MIP threshold;MIP threshold;data rate [Gb/s]",
+                 1000,
+                 800);
+  canvas.SetGrid();
   TGraph graph(static_cast<int>(kMIPCoefficients.size()), kMIPCoefficients.data(), values.data());
   graph.SetName("g_mean_chip_data_rate_vs_mip");
+  graph.SetTitle("LFHCAL mean chip data rate vs MIP threshold;MIP threshold;data rate [Gb/s]");
   graph.SetMarkerStyle(20);
+  graph.SetLineWidth(2);
+  graph.Draw("ALP");
+  rates::pad_axes(graph);
+  graph.GetXaxis()->SetLimits(0.0, 1.5);
+  canvas_directory->cd();
+  canvas.Write();
+  graph_directory->cd();
   graph.Write();
 }
 
-void write_chip_channel_graphs(TDirectory* directory,
+void write_chip_channel_graphs(TDirectory* graph_directory,
+                               TDirectory* canvas_directory,
                                const std::array<double, kMIPCoefficients.size()>& rates_hz,
                                const std::array<double, kMIPCoefficients.size()>& means) {
-  directory->cd();
+  // Draw and write fired-channel rate and multiplicity threshold scans.
+  canvas_directory->cd();
+  TCanvas rate_canvas("c_chip_channel_rate_vs_mip",
+                      "LFHCAL mean fired-channel rate per chip;MIP threshold;fired-channel rate [Hz/chip]",
+                      1000,
+                      800);
+  rate_canvas.SetGrid();
+  rate_canvas.SetLogy();
   TGraph rate_graph(static_cast<int>(kMIPCoefficients.size()), kMIPCoefficients.data(), rates_hz.data());
   rate_graph.SetName("g_chip_channel_rate_vs_mip");
+  rate_graph.SetTitle("LFHCAL mean fired-channel rate per chip;MIP threshold;fired-channel rate [Hz/chip]");
+  rate_graph.SetMinimum(1.0e4);
   rate_graph.SetMarkerStyle(20);
+  rate_graph.SetLineWidth(2);
+  rate_graph.Draw("ALP");
+  rates::pad_axes(rate_graph);
+  rate_graph.GetXaxis()->SetLimits(0.0, 1.5);
+  canvas_directory->cd();
+  rate_canvas.Write();
+  graph_directory->cd();
   rate_graph.Write();
+
+  canvas_directory->cd();
+  TCanvas mean_canvas("c_active_channels_vs_mip",
+                      "LFHCAL mean fired channels per chip-event;MIP threshold;mean fired channels/chip/event",
+                      1000,
+                      800);
+  mean_canvas.SetGrid();
+  mean_canvas.SetLogy();
   TGraph mean_graph(static_cast<int>(kMIPCoefficients.size()), kMIPCoefficients.data(), means.data());
   mean_graph.SetName("g_active_channels_vs_mip");
+  mean_graph.SetTitle("LFHCAL mean fired channels per chip-event;MIP threshold;mean fired channels/chip/event");
   mean_graph.SetMarkerStyle(20);
+  mean_graph.SetLineWidth(2);
+  mean_graph.Draw("ALP");
+  rates::pad_axes(mean_graph);
+  mean_graph.GetXaxis()->SetLimits(0.0, 1.5);
+  canvas_directory->cd();
+  mean_canvas.Write();
+  graph_directory->cd();
   mean_graph.Write();
 }
 
-void write_total_rate_graph(TDirectory* directory,
+void write_total_rate_graph(TDirectory* graph_directory,
+                            TDirectory* canvas_directory,
                             const std::array<double, kMIPCoefficients.size()>& rates_gbps) {
-  directory->cd();
+  // Draw and write the total LFHCAL data-rate threshold scan.
+  canvas_directory->cd();
+  TCanvas canvas("c_lfhcal_rate",
+                 "LFHCAL total data rate vs MIP threshold;MIP threshold;data rate [Gb/s]",
+                 1000,
+                 800);
+  canvas.SetGrid();
   TGraph graph(static_cast<int>(kMIPCoefficients.size()), kMIPCoefficients.data(), rates_gbps.data());
   graph.SetName("g_lfhcal_rate");
+  graph.SetTitle("LFHCAL total data rate vs MIP threshold;MIP threshold;data rate [Gb/s]");
   graph.SetMarkerStyle(20);
+  graph.SetLineWidth(2);
+  graph.Draw("ALP");
+  rates::pad_axes(graph);
+  graph.GetXaxis()->SetLimits(0.0, 1.5);
+  graph.GetXaxis()->SetRangeUser(0.0, 1.5);
+  canvas.Modified();
+  canvas.Update();
+  canvas_directory->cd();
+  canvas.Write();
+  graph_directory->cd();
   graph.Write();
 }
 
@@ -185,27 +262,44 @@ void write_output(TDirectory* parent,
   }
 
   // Write channel, chip, payload, occupancy, and detector-total threshold scans.
-  draw_overlay(parent->mkdir("channel_hit_rate_vs_mip"),
+  auto* channel_hit_directory = parent->mkdir("channel_hit_rate_vs_mip");
+  draw_overlay(channel_hit_directory->mkdir("graphs"),
+               channel_hit_directory,
                "c_channel_hit_rate_vs_mip",
-               "LFHCAL channel rates vs MIP threshold;MIP threshold;rate [Hz]",
+               "Percentiles of LFHCAL channel rates vs MIP threshold;MIP threshold;rate [Hz]",
                "g_channel_hit_rate_vs_mip",
+               300.0,
+               true,
                channel_hit_values);
-  draw_overlay(parent->mkdir("chip_hit_rate_vs_mip"),
+  auto* chip_hit_directory = parent->mkdir("chip_hit_rate_vs_mip");
+  draw_overlay(chip_hit_directory->mkdir("graphs"),
+               chip_hit_directory,
                "c_chip_hit_rate_vs_mip",
-               "LFHCAL chip rates vs MIP threshold;MIP threshold;rate [Hz]",
+               "Percentiles of LFHCAL chip rates vs MIP threshold;MIP threshold;rate [Hz]",
                "g_chip_hit_rate_vs_mip",
+               2000.0,
+               true,
                chip_hit_values);
   auto* chip_data_directory = parent->mkdir("chip_data_rate_vs_mip");
-  draw_overlay(chip_data_directory,
+  auto* chip_data_graph_directory = chip_data_directory->mkdir("graphs");
+  draw_overlay(chip_data_graph_directory,
+               chip_data_directory,
                "c_chip_data_rate_vs_mip",
-               "LFHCAL chip data rates vs MIP threshold;MIP threshold;data rate [Gb/s]",
+               "Percentiles of LFHCAL chip data rates vs MIP threshold;MIP threshold;data rate [Gb/s]",
                "g_chip_data_rate_vs_mip",
+               1.0e-3,
+               true,
                chip_data_values);
-  write_mean_graph(chip_data_directory, mean_chip_data_values);
-  write_chip_channel_graphs(parent->mkdir("chip_channel_rate_vs_mip"),
+  write_mean_graph(chip_data_graph_directory, chip_data_directory, mean_chip_data_values);
+  auto* chip_channel_directory = parent->mkdir("chip_channel_rate_vs_mip");
+  write_chip_channel_graphs(chip_channel_directory->mkdir("graphs"),
+                            chip_channel_directory,
                             chip_channel_rates_hz,
                             mean_active_channels);
-  write_total_rate_graph(parent->mkdir("total_data_rate_vs_mip"), total_data_rates_gbps);
+  auto* total_rate_directory = parent->mkdir("total_data_rate_vs_mip");
+  write_total_rate_graph(total_rate_directory->mkdir("graphs"),
+                         total_rate_directory,
+                         total_data_rates_gbps);
 }
 
 }  // namespace rates::lfhcal_analysis::occupancy::mip

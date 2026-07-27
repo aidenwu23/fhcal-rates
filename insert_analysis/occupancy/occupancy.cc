@@ -1,6 +1,6 @@
 /*
 
-./build/insert_occupancy -i data/bkg_apr -o insert_plots/occupancy.root
+./build/insert_occupancy -i data/bkg_july -o insert_plots/occupancy.root
 
 */
 

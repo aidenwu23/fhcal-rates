@@ -19,6 +19,7 @@ namespace rates::lfhcal_analysis::occupancy {
 
 constexpr int kNReadoutLayers = 7;
 constexpr int kAllLayers = kNReadoutLayers;
+constexpr int kNChannelTypes = 2;
 constexpr double kEventWindowSec = 2e-6;
 constexpr double kNominalThresholdMIP = 0.1;
 constexpr double kOverheadBits = 128.0;
@@ -37,15 +38,17 @@ struct ChannelStats {
 };
 
 struct LayerSum {
-  // Per-channel totals and event multiplicity for one layer group.
+  // Per-channel totals for one layer group.
   std::unordered_map<rates::LFHCALChannelID, ChannelStats, rates::LFHCALChannelIDHash> channels;
-  TH1D* h_channels_event = nullptr;
 };
 
 using EventChannels = std::vector<rates::lfhcal_analysis::EventChannel>;
 
 std::string layer_name(int layer);
 std::string layer_title(int layer);
+int channel_type(int layer);
+std::string channel_type_name(int type);
+std::string channel_type_title(int type);
 std::size_t percentile_index(std::size_t n_values, double percentile);
 void draw_and_write(TDirectory* directory, TH1* histogram, const char* canvas_name, bool logx = false, bool logy = false);
 

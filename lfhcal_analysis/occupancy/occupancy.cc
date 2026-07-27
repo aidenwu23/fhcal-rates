@@ -1,6 +1,6 @@
 /*
 
-./build/lfhcal_occupancy -i data/bkg_apr -o lfhcal_plots/occupancy.root
+./build/lfhcal_occupancy -i data/bkg_july -o lfhcal_plots/occupancy.root
 
 */
 
@@ -140,8 +140,9 @@ int main(int argc, char* argv[]) {
         for (const auto& contribution : hit.getContributions()) {
           if (contribution.getEnergy() <= 0.0) continue;
           const int origin = rates::origin_index(contribution.getParticle().getGeneratorStatus());
-          if (origin == 0) event_channel.energy_by_origin[0] += contribution.getEnergy();
-          if (origin == 5) event_channel.energy_by_origin[1] += contribution.getEnergy();
+          if (origin >= 0 && origin < static_cast<int>(event_channel.energy_by_origin.size())) {
+            event_channel.energy_by_origin[origin] += contribution.getEnergy();
+          }
         }
         ++event_channel.hit_count;
       }

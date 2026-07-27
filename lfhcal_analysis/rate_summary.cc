@@ -1,6 +1,6 @@
 /*
 
-./build/lfhcal_rate_summary -i data/bkg_apr -o lfhcal_plots/rate_summary.csv
+./build/lfhcal_rate_summary -i data/bkg_july -o lfhcal_plots/rate_summary.csv
 
 */
 

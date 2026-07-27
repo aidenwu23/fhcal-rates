@@ -78,6 +78,7 @@ void draw_and_write(TDirectory* dir, TH1* hist, const std::string& canvas_name) 
   TCanvas canvas(canvas_name.c_str(), hist->GetTitle(), 1000, 800);
   canvas.SetLogy();
   hist->Draw("hist");
+  rates::pad_axes(*hist);
   canvas.Write();
 }
 
