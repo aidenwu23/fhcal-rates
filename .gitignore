@@ -75,3 +75,5 @@ calibrations/
 *.root
 
 *__pycache__/
+
+*.csv

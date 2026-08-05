@@ -18,29 +18,4 @@ add_subdirectory(scripts/data_prep)
 
 add_subdirectory(insert_analysis)
 
-add_subdirectory(lfhcal_analysis/hit-origins)
-
-add_subdirectory(lfhcal_analysis/channel_occupancy)
-
-add_subdirectory(lfhcal_analysis/chip_occupancy)
-
-add_subdirectory(lfhcal_analysis/data_rates)
-
-add_subdirectory(lfhcal_analysis/performance)
-
-add_subdirectory(lfhcal_analysis/muons)
-
-add_executable(channel_count lfhcal_analysis/channel_count.cc)
-target_compile_features(channel_count PRIVATE cxx_std_17)
-target_include_directories(channel_count PRIVATE ${CMAKE_SOURCE_DIR}/scripts/include)
-target_sources(channel_count PRIVATE ${CMAKE_SOURCE_DIR}/scripts/src/utils.cc ${CMAKE_SOURCE_DIR}/scripts/src/decode_cell_id.cc)
-target_link_libraries(
-  channel_count
-  PRIVATE
-    podio::podio
-    podio::podioRootIO
-    EDM4HEP::edm4hep
-    ROOT::Core
-    ROOT::RIO)
-
-install(TARGETS channel_count RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
+add_subdirectory(lfhcal_analysis)

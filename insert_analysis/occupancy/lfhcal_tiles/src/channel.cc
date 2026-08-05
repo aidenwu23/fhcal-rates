@@ -31,7 +31,7 @@ void write_hit_rate_directory(TDirectory* parent,
   // Convert each full-sample channel count into a rate using the event window.
   for (const auto& [channel, stats] : segment_sum.channels) {
     (void)channel;
-    const double hit_rate = static_cast<double>(stats.total_hits) / (static_cast<double>(n_events) * kEventWindowSec);
+    const double hit_rate = static_cast<double>(stats.passing_events) / (static_cast<double>(n_events) * kEventWindowSec);
     h_hit_rate->Fill(hit_rate);
   }
 
