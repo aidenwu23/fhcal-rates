@@ -1,6 +1,7 @@
 /*
 
 root -l -b -q 'insert_analysis/count_channels.C("data/bkg_july")'
+root -l -b -q 'insert_analysis/count_channels.C("data/bkg_july_minbias")'
 
 */
 

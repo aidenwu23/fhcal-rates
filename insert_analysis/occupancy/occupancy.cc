@@ -1,6 +1,7 @@
 /*
 
 ./build/insert_occupancy -i data/bkg_july -o insert_plots/occupancy.root
+./build/insert_occupancy -i data/bkg_july_minbias -o insert_plots/occupancy_minbias.root
 
 */
 
