@@ -31,7 +31,7 @@ namespace fs = std::filesystem;
 namespace {
 
 constexpr const char* kHitCollection = "LFHCALHits";
-constexpr int kNReadoutLayers = 7;
+constexpr int kNReadoutLayers = 8;
 constexpr double kMaxRadiusMm = 1000.0;
 constexpr double kMaxRadiusMm2 = kMaxRadiusMm * kMaxRadiusMm;
 constexpr double kMinContributionGeV = 0.0005;

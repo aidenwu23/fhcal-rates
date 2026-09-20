@@ -21,3 +21,23 @@ target_link_libraries(
     ROOT::Gpad)
 
 install(TARGETS histogram_mip RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
+
+add_executable(minbias_muons minbias_muons.cc)
+target_compile_features(minbias_muons PRIVATE cxx_std_17)
+target_include_directories(minbias_muons PRIVATE ${CMAKE_SOURCE_DIR}/scripts/include)
+target_sources(minbias_muons PRIVATE
+  ${CMAKE_SOURCE_DIR}/scripts/src/utils.cc
+  ${CMAKE_SOURCE_DIR}/scripts/src/decode_cell_id.cc)
+target_link_libraries(
+  minbias_muons
+  PRIVATE
+    podio::podio
+    podio::podioRootIO
+    EDM4HEP::edm4hep
+    ROOT::Core
+    ROOT::RIO
+    ROOT::Hist
+    ROOT::Graf
+    ROOT::Gpad)
+
+install(TARGETS minbias_muons RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
