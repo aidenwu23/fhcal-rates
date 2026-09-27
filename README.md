@@ -4,7 +4,7 @@ Code for estimating hit occupancy and readout rates in the ePIC LFHCal and forwa
 
 ## Build
 
-In an EIC software environment with ROOT, podio, and EDM4hep available, run:
+Inside eic-shell, run:
 
 ```bash
 ./build.sh
